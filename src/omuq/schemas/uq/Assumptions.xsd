@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:uq="http://openscaling.org/UQ1/UncertaintyQuantification"
+  xmlns:ssc="http://ssp-standard.org/SSP1/SystemStructureCommon"
+  xmlns:stc="http://ssp-standard.org/SSPTraceability1/SSPTraceabilityCommon"
+  targetNamespace="http://openscaling.org/UQ1/UncertaintyQuantification"
+  elementFormDefault="qualified"
+  attributeFormDefault="unqualified">
+
+  <xs:import namespace="http://ssp-standard.org/SSP1/SystemStructureCommon"
+    schemaLocation="SystemStructureCommon.xsd" />
+  <xs:import namespace="http://ssp-standard.org/SSPTraceability1/SSPTraceabilityCommon"
+    schemaLocation="STC.xsd" />
+
+  <!-- ==================================================================== -->
+  <!-- OriginType: where the assumption came from                          -->
+  <!-- ==================================================================== -->
+  <!-- tag::OriginType[] -->
+  <xs:simpleType name="OriginType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="requirement" />
+      <xs:enumeration value="standard" />
+      <xs:enumeration value="design-decision" />
+      <xs:enumeration value="inherited" />
+      <xs:enumeration value="expert-judgment" />
+      <xs:enumeration value="empirical" />
+      <xs:enumeration value="literature" />
+      <xs:enumeration value="unknown" />
+    </xs:restriction>
+  </xs:simpleType>
+  <!-- end::OriginType[] -->
+
+  <!-- ==================================================================== -->
+  <!-- Assumption Value Types                                               -->
+  <!-- ==================================================================== -->
+
+  <!-- Single real value: <Real value="101325" unit="Pa"/> -->
+  <xs:complexType name="RealValueType">
+    <xs:attribute name="value" type="xs:double" use="required" />
+    <xs:attribute name="unit" type="xs:string" use="optional" />
+    <xs:attribute name="description" type="xs:string" use="optional" />
+  </xs:complexType>
+
+  <!-- Real range: <RealRange low="20" high="40" unit="degC"/> -->
+  <xs:complexType name="RealRangeType">
+    <xs:attribute name="low" type="xs:double" use="required" />
+    <xs:attribute name="high" type="xs:double" use="required" />
+    <xs:attribute name="unit" type="xs:string" use="optional" />
+    <xs:attribute name="description" type="xs:string" use="optional" />
+  </xs:complexType>
+
+  <!-- String value: <String value="flat"/> -->
+  <xs:complexType name="StringValueType">
+    <xs:attribute name="value" type="xs:string" use="required" />
+    <xs:attribute name="description" type="xs:string" use="optional" />
+  </xs:complexType>
+
+  <!-- External document reference -->
+  <xs:complexType name="ExternalDocumentType">
+    <xs:attribute name="source" type="xs:string" use="required" />
+    <xs:attribute name="type" type="xs:string" use="optional" />
+    <xs:attribute name="section" type="xs:string" use="optional" />
+    <xs:attribute name="description" type="xs:string" use="optional" />
+  </xs:complexType>
+
+  <!-- Reference to an OperationalDomain defined elsewhere -->
+  <xs:complexType name="OperationalDomainRefType">
+    <xs:attribute name="ref" type="xs:string" use="required" />
+    <xs:attribute name="description" type="xs:string" use="optional" />
+  </xs:complexType>
+
+  <!-- ==================================================================== -->
+  <!-- AssumptionType: a single assumption with polymorphic value          -->
+  <!-- ==================================================================== -->
+  <!--
+    The value is expressed via an optional choice of typed child elements.
+    An assumption MAY have no value (e.g. pure textual statement via <Text>),
+    or exactly one typed value.
+  -->
+  <!-- tag::AssumptionType[] -->
+  <xs:complexType name="AssumptionType">
+    <xs:sequence>
+      <!-- Optional: link to an operational domain this assumption applies to -->
+      <xs:element name="OperationalDomainRef" type="uq:OperationalDomainRefType"
+        minOccurs="0" maxOccurs="unbounded" />
+      <!-- The assumption value: at most one of these -->
+      <xs:choice minOccurs="0">
+        <xs:element name="Real" type="uq:RealValueType" />
+        <xs:element name="RealRange" type="uq:RealRangeType" />
+        <xs:element name="String" type="uq:StringValueType" />
+        <xs:element name="Text" type="xs:string" />
+        <xs:element name="ExternalDocument" type="uq:ExternalDocumentType" />
+      </xs:choice>
+      <!-- STC common elements: Classification (0..*) + Annotations (0..1) -->
+      <xs:group ref="stc:GElementCommon" />
+    </xs:sequence>
+    <!-- Identity -->
+    <xs:attribute name="id" type="xs:ID" use="optional" />
+    <xs:attribute name="name" type="xs:string" use="required" />
+    <xs:attribute name="description" type="xs:string" use="optional" />
+    <!-- Provenance -->
+    <xs:attribute name="origin" type="uq:OriginType" use="optional" />
+    <xs:attribute name="originRef" type="xs:string" use="optional" />
+    <!-- Time-dependent validity (simulation time) -->
+    <xs:attribute name="validFrom" type="xs:double" use="optional" />
+    <xs:attribute name="validTo" type="xs:double" use="optional" />
+    <xs:attribute name="timeUnit" type="xs:string" use="optional" />
+    <!-- Traceability (reuses SSP/SSC) -->
+    <xs:attributeGroup ref="ssc:ATopLevelMetaData" />
+  </xs:complexType>
+  <!-- end::AssumptionType[] -->
+
+  <!-- ==================================================================== -->
+  <!-- tag::RequiredAssumptionsType[] -->
+  <!-- RequiredAssumptionsType: pre-experiment requirements                -->
+  <!-- "The model SHALL assume these conditions"                            -->
+  <!-- ==================================================================== -->
+  <xs:complexType name="RequiredAssumptionsType">
+    <xs:sequence>
+      <xs:element name="Assumption" type="uq:AssumptionType"
+        minOccurs="1" maxOccurs="unbounded" />
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:ID" use="required" />
+    <xs:attribute name="description" type="xs:string" use="optional" />
+    <xs:attributeGroup ref="ssc:ATopLevelMetaData" />
+  </xs:complexType>
+  <!-- end::RequiredAssumptionsType[] -->
+
+  <!-- ==================================================================== -->
+  <!-- ModelingAssumptionsType: post-experiment (on Model)                 -->
+  <!-- "The model DOES assume these conditions"                             -->
+  <!-- ==================================================================== -->
+  <xs:complexType name="ModelingAssumptionsType">
+    <xs:sequence>
+      <xs:element name="Assumption" type="uq:AssumptionType"
+        minOccurs="1" maxOccurs="unbounded" />
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:ID" use="required" />
+    <xs:attribute name="description" type="xs:string" use="optional" />
+    <xs:attributeGroup ref="ssc:ATopLevelMetaData" />
+  </xs:complexType>
+
+</xs:schema>

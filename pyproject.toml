@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "omuq-python"
+dynamic = ["version"]
+description = "Attach, read, and validate omuq (openScaling UQ) data in SSP packages via SSP 2.0 MetaData links"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "TBD" }
+authors = [{ name = "Amin Bajand" }]
+keywords = ["SSP", "FMI", "uncertainty quantification", "openScaling", "Modelica"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "lxml>=4.9",
+    "xsdata>=24.0",
+]
+
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "xsdata[cli]>=24.0", "ruff"]
+geometry = ["scipy>=1.10"]
+sim = ["OMSimulator"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+omuq = ["schemas/uq/*.xsd", "schemas/ssp/*.xsd", "schemas/ssp/LICENSE.txt", "py.typed"]
+"omuq.webui" = ["index.html", "static/*.js"]
+
+[tool.setuptools.dynamic]
+version = { attr = "omuq.constants.TOOL_VERSION" }
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "tests"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+extend-exclude = ["src/omuq/model/_generated.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]

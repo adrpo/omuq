@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<xs:schema
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:stc="http://ssp-standard.org/SSPTraceability1/SSPTraceabilityCommon"
+  xmlns:ssc="http://ssp-standard.org/SSP1/SystemStructureCommon"
+  targetNamespace="http://ssp-standard.org/SSPTraceability1/SSPTraceabilityCommon"
+  elementFormDefault="qualified"
+  attributeFormDefault="unqualified">
+
+  <xs:import namespace="http://ssp-standard.org/SSP1/SystemStructureCommon"
+    schemaLocation="SystemStructureCommon.xsd" />
+
+  <!-- GElementCommon: Classification (0..*) + Annotations (0..1) -->
+  <xs:group name="GElementCommon">
+    <xs:sequence>
+      <xs:element name="Classification" type="stc:ClassificationType"
+        minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="Annotations" type="ssc:TAnnotations"
+        minOccurs="0" />
+    </xs:sequence>
+  </xs:group>
+
+  <xs:complexType name="ClassificationType">
+    <xs:sequence>
+      <xs:element name="ClassificationEntry" minOccurs="0" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:documentation xml:lang="en"> A keyword value pair: the keyword is given by the
+            'keyword' attribute and the value is the element content. </xs:documentation>
+        </xs:annotation>
+        <xs:complexType mixed="true">
+          <xs:sequence>
+            <xs:any namespace="##any" processContents="lax"
+              minOccurs="0" maxOccurs="unbounded" />
+          </xs:sequence>
+          <xs:attribute name="keyword" type="xs:normalizedString" use="required" />
+          <!-- MIME type of the element content -->
+          <xs:attribute name="type" type="xs:string" default="text/plain" />
+          <xs:attributeGroup ref="ssc:ABaseElement" />
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+    <!-- Name of the classification type, in reverse domain name notation -->
+    <xs:attribute name="type" type="xs:normalizedString" />
+    <xs:attributeGroup ref="ssc:ABaseElement" />
+  </xs:complexType>
+
+</xs:schema>

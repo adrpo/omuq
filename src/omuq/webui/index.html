@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>omuq live simulation</title>
+<script src="/static/plotly.min.js"></script>
+<style>
+:root {
+  --bg: #111418; --panel: #1a1f26; --border: #2a2f37;
+  --text: #e8eaed; --muted: #9aa0a6;
+  --ok: #2fbf71; --bad: #e5534b; --accent: #4f8ef7;
+}
+* { box-sizing: border-box; margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px; display: grid; grid-template-rows: auto auto 1fr;
+  min-height: 100vh;
+}
+header {
+  display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+  padding: 12px 18px 8px;
+}
+header h1 { font-size: 18px; font-weight: 600; }
+#study { color: var(--muted); }
+#tick { color: var(--muted); margin-left: auto; font-variant-numeric: tabular-nums; }
+.badge {
+  padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  border: 1px solid var(--border); color: var(--muted);
+}
+.badge.running { color: var(--accent); border-color: var(--accent); }
+.badge.running::before { content: "● "; animation: pulse 1.2s infinite; }
+.badge.finished { color: var(--ok); border-color: var(--ok); }
+@keyframes pulse { 50% { opacity: 0.3; } }
+#progress { height: 2px; background: var(--border); }
+#bar { height: 100%; width: 0%; background: var(--accent); transition: width 0.15s; }
+main {
+  display: grid; grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 12px; padding: 12px 18px 18px; align-items: start;
+}
+@media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+.panel {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px; margin-bottom: 12px;
+}
+.panel h2 {
+  font-size: 12px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--muted); margin-bottom: 8px;
+  display: flex; align-items: center; gap: 8px;
+}
+#ts, #geo { width: 100%; }
+#geoCtl { margin-bottom: 6px; }
+select {
+  background: var(--bg); color: var(--text); border: 1px solid var(--border);
+  border-radius: 6px; padding: 2px 6px; font: inherit; font-size: 12px;
+}
+.dom {
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 8px 10px; margin-bottom: 8px;
+}
+.dom .row { display: flex; align-items: center; gap: 8px; }
+.dom .swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.dom .name { font-weight: 600; overflow-wrap: anywhere; }
+.dom .kind {
+  font-size: 11px; color: var(--muted); border: 1px solid var(--border);
+  border-radius: 999px; padding: 0 8px; margin-left: auto; white-space: nowrap;
+}
+.dom .meta { display: flex; gap: 8px; margin-top: 6px; align-items: center; }
+.dom .count { font-variant-numeric: tabular-nums; color: var(--muted); }
+.pill {
+  font-size: 11px; font-weight: 600; border-radius: 999px; padding: 1px 8px;
+}
+.pill.inside { background: rgba(47,191,113,0.15); color: var(--ok); }
+.pill.outside { background: rgba(229,83,75,0.18); color: var(--bad); }
+.dom.unmonitored { opacity: 0.6; }
+.dom .reason { color: var(--muted); font-size: 12px; margin-top: 4px; }
+#log { max-height: 320px; overflow-y: auto; font-size: 12px; }
+#log div {
+  padding: 3px 4px; border-bottom: 1px solid var(--border);
+  color: var(--bad); overflow-wrap: anywhere;
+  font-family: ui-monospace, Menlo, monospace; font-size: 11px;
+}
+#log div[data-idx] { cursor: pointer; }
+#log div[data-idx]:hover { background: rgba(79, 142, 247, 0.08); }
+#log div.sel { outline: 1px solid var(--accent); outline-offset: -1px; }
+#summary table, #detail table { border-collapse: collapse; width: 100%; }
+#summary td, #detail td { padding: 3px 6px; border-bottom: 1px solid var(--border); }
+#summary td:last-child, #detail td:last-child {
+  text-align: right; font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+}
+#detailClose {
+  margin-left: auto; background: none; border: 1px solid var(--border);
+  color: var(--muted); border-radius: 6px; cursor: pointer; font: inherit;
+  font-size: 11px; padding: 0 8px; line-height: 18px;
+}
+#detailClose:hover { color: var(--text); }
+#geoTools { margin-left: auto; display: flex; gap: 4px; align-items: center; }
+.tool {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  border-radius: 6px; cursor: pointer; font: inherit; font-size: 12px;
+  padding: 0 7px; line-height: 18px;
+}
+.tool:hover { color: var(--text); border-color: var(--muted); }
+.panel:fullscreen {
+  background: var(--bg); border-radius: 0; overflow: auto; padding: 16px 20px;
+}
+.panel:-webkit-full-screen { background: var(--bg); }
+#detail .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+#detail .vio {
+  color: var(--bad); font-family: ui-monospace, Menlo, monospace;
+  font-size: 11px; padding: 2px 0;
+}
+.empty { color: var(--muted); font-style: italic; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">omuq live simulation</h1>
+  <span id="study"></span>
+  <span id="state" class="badge">waiting</span>
+  <span id="tick"></span>
+</header>
+<div id="progress"><div id="bar"></div></div>
+<main>
+  <section>
+    <div class="panel"><h2>Observed variables</h2><div id="ts"></div></div>
+    <div class="panel">
+      <h2>Domains &amp; trajectory
+        <span id="geoCtl"></span>
+        <span id="geoTools">
+          <select id="zoomTo"></select>
+          <button class="tool" id="zoomIn" title="zoom in">+</button>
+          <button class="tool" id="zoomOut" title="zoom out">&minus;</button>
+          <button class="tool" id="zoomReset" title="reset view">&#10226;</button>
+          <button class="tool" id="fsBtn" title="fullscreen">&#9974;</button>
+        </span>
+      </h2>
+      <div id="geo"></div>
+    </div>
+    <div class="panel" id="detailPanel" hidden>
+      <h2>Selected sample <button id="detailClose" title="clear selection">✕ close</button></h2>
+      <div id="detail"></div>
+    </div>
+    <div class="panel" id="summaryPanel" hidden><h2>Summary</h2><div id="summary"></div></div>
+  </section>
+  <aside>
+    <div class="panel"><h2>Domains</h2><div id="domains"></div></div>
+    <div class="panel">
+      <h2>Violations <select id="logfilter"><option value="">all</option></select></h2>
+      <div id="log"><div class="empty" id="logempty" style="border:none">none yet</div></div>
+    </div>
+  </aside>
+</main>
+<script>
+"use strict";
+const VAR_COLORS = ["#6ea8fe", "#f4a261", "#95d5b2", "#e5989b", "#c9a7eb", "#8ecae6"];
+const DOM_COLORS = ["#2a9d8f", "#e9c46a", "#b07aa1", "#76c7c0", "#f28482", "#a3b18a"];
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+let INIT = null, es = null;
+let allSamples = [], counts = {}, totalViol = 0;
+let pending = [], flushScheduled = false;
+let geoMode = null, geoIdx = {};   // trace indices for the geometry plot
+let okMap = [], violMap = [];      // geometry sample-trace point -> sample index
+let selectedIdx = null;
+let logFilter = "";
+let geoHeight = 440;               // grows while the panel is fullscreen
+
+const fmtG = x => (x === null || x === undefined) ? "?" : Number(Number(x).toPrecision(6)).toString();
+const domColor = i => DOM_COLORS[i % DOM_COLORS.length];
+
+function plotLayout(extra) {
+  return Object.assign({
+    paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+    font: { color: css("--text"), size: 11 },
+    margin: { l: 45, r: 10, t: 10, b: 35 },
+    uirevision: "keep",
+    legend: { font: { color: css("--text") }, bgcolor: "rgba(0,0,0,0)" },
+    xaxis: { gridcolor: css("--border"), zerolinecolor: css("--border") },
+    yaxis: { gridcolor: css("--border"), zerolinecolor: css("--border") },
+  }, extra || {});
+}
+const PLOT_CFG = { displayModeBar: false, responsive: true };
+
+function monitoredGeo() {
+  return INIT.domains.filter(d => d.monitored && d.vertices.length && d.axes.length);
+}
+function rectExpand(d) {
+  const [a, b] = d.vertices, dim = a.length, out = [];
+  for (let m = 0; m < (1 << dim); m++)
+    out.push(a.map((_, i) => ((m >> i) & 1) ? b[i] : a[i]));
+  return out;
+}
+const domVertices = d => d.geometry === "rect" ? rectExpand(d) : d.vertices;
+function mapVertex(d, v, wanted) {   // reorder a vertex into `wanted` axis order
+  return wanted.map(n => { const i = d.axes.indexOf(n); return i >= 0 ? v[i] : null; });
+}
+function hull2d(pts) {               // monotone chain convex hull
+  const p = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  if (p.length < 3) return p;
+  const cross = (o, a, b) => (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0]);
+  const lo = [], hi = [];
+  for (const q of p) {
+    while (lo.length > 1 && cross(lo[lo.length-2], lo[lo.length-1], q) <= 0) lo.pop();
+    lo.push(q);
+  }
+  for (const q of p.slice().reverse()) {
+    while (hi.length > 1 && cross(hi[hi.length-2], hi[hi.length-1], q) <= 0) hi.pop();
+    hi.push(q);
+  }
+  return lo.slice(0, -1).concat(hi.slice(0, -1));
+}
+
+/* ---------- time series ---------- */
+function initTs() {
+  const traces = INIT.names.map((n, i) => ({
+    x: [], y: [], mode: "lines", name: n,
+    line: { color: VAR_COLORS[i % VAR_COLORS.length], width: 2 },
+  }));
+  Plotly.newPlot("ts", traces, plotLayout({
+    height: 280, showlegend: true,
+    legend: { orientation: "h", y: 1.15, font: { color: css("--text") },
+              bgcolor: "rgba(0,0,0,0)" },
+    xaxis: { title: { text: "t" }, gridcolor: css("--border"), zerolinecolor: css("--border") },
+  }), PLOT_CFG);
+  bindClick("ts", p => selectSample(p.pointNumber));
+}
+
+/* ---------- geometry view ---------- */
+function initGeo() {
+  geoMode = INIT.names.length === 3 ? "3d" : "2d";
+  if (geoMode === "3d") initGeo3d(); else initGeo2d();
+}
+
+function geoSampleTraces(dim3) {
+  // shared tail of the geometry plot: trajectory, ok, violations, current, selected
+  const base = dim3 ? { type: "scatter3d", z: [] } : {};
+  const start = arguments.length > 1 ? arguments[1] : 0;
+  const traces = [];
+  geoIdx.line = start + traces.length;
+  traces.push(Object.assign({ x: [], y: [], mode: "lines", name: "trajectory",
+    line: { color: css("--muted"), width: dim3 ? 3 : 1 },
+    showlegend: true, hoverinfo: "skip" }, base));
+  geoIdx.ok = start + traces.length;
+  traces.push(Object.assign({ x: [], y: [], mode: "markers", name: "valid samples",
+    marker: { size: dim3 ? 2.5 : 4, color: css("--ok") },
+    showlegend: true }, base));
+  geoIdx.viol = start + traces.length;
+  traces.push(Object.assign({ x: [], y: [], mode: "markers", name: "violations",
+    marker: { size: dim3 ? 3.5 : 5, color: css("--bad") },
+    showlegend: true }, base));
+  geoIdx.cur = start + traces.length;
+  traces.push(Object.assign({ x: [], y: [], mode: "markers", name: "current",
+    marker: { size: dim3 ? 6 : 9, color: css("--accent") },
+    showlegend: true, hoverinfo: "skip" }, base));
+  geoIdx.sel = start + traces.length;
+  traces.push(Object.assign({ x: [], y: [], mode: "markers", name: "selected",
+    marker: { size: dim3 ? 9 : 12, color: css("--accent"), symbol: "diamond" },
+    showlegend: false, hoverinfo: "skip" }, base));
+  return traces;
+}
+
+function initGeo3d() {
+  document.getElementById("geoCtl").innerHTML = "";
+  okMap = []; violMap = [];
+  const traces = [];
+  monitoredGeo().forEach((d, k) => {
+    const verts = domVertices(d)
+      .map(v => mapVertex(d, v, INIT.names))
+      .filter(v => v.every(x => x !== null));
+    if (verts.length < 4) return;    // cannot mesh a lower-dimensional domain
+    traces.push({
+      type: "mesh3d",
+      x: verts.map(v => v[0]), y: verts.map(v => v[1]), z: verts.map(v => v[2]),
+      alphahull: 0, opacity: 0.15, color: domColor(k),
+      name: d.name || d.id, hoverinfo: "name", flatshading: true,
+      showlegend: true,
+    });
+  });
+  traces.push(...geoSampleTraces(true, traces.length));
+  const ax = t => ({ title: { text: t }, gridcolor: css("--border"),
+    zerolinecolor: css("--border"), backgroundcolor: "rgba(0,0,0,0)" });
+  Plotly.newPlot("geo", traces, plotLayout({
+    height: geoHeight, showlegend: true,
+    legend: { orientation: "h", y: -0.02, font: { color: css("--text") },
+              bgcolor: "rgba(0,0,0,0)" },
+    scene: { xaxis: ax(INIT.names[0]), yaxis: ax(INIT.names[1]),
+             zaxis: ax(INIT.names[2]), aspectmode: "cube",
+             bgcolor: "rgba(0,0,0,0)" },
+    margin: { l: 0, r: 0, t: 0, b: 0 },
+  }), PLOT_CFG);
+  bindClick("geo", geoClickHandler);
+}
+
+function geoClickHandler(p) {
+  if (p.curveNumber === geoIdx.ok) selectSample(okMap[p.pointNumber]);
+  else if (p.curveNumber === geoIdx.viol) selectSample(violMap[p.pointNumber]);
+}
+
+function geoAxes2d() {
+  const sx = document.getElementById("axx"), sy = document.getElementById("axy");
+  return [sx.value, sy.value];
+}
+function initGeo2d() {
+  const ctl = document.getElementById("geoCtl");
+  const opts = i => INIT.names.map((n, k) =>
+    `<option value="${n}"${k === i ? " selected" : ""}>${n}</option>`).join("");
+  ctl.innerHTML = `x <select id="axx">${opts(0)}</select> ·
+                   y <select id="axy">${opts(Math.min(1, INIT.names.length - 1))}</select>`;
+  ctl.querySelectorAll("select").forEach(s => s.addEventListener("change", rebuildGeo2d));
+  rebuildGeo2d();
+  bindClick("geo", geoClickHandler);
+}
+function rebuildGeo2d() {
+  const [nx, ny] = geoAxes2d();
+  const traces = [], shapes = [];
+  monitoredGeo().forEach((d, k) => {
+    const hasX = d.axes.includes(nx), hasY = d.axes.includes(ny);
+    if (hasX && hasY) {
+      const proj = domVertices(d).map(v => mapVertex(d, v, [nx, ny]));
+      const hull = hull2d(proj);
+      if (hull.length >= 2) {
+        const closed = hull.concat([hull[0]]);
+        traces.push({ x: closed.map(p => p[0]), y: closed.map(p => p[1]),
+          mode: "lines", fill: "toself", name: d.name || d.id,
+          line: { color: domColor(k), width: 1.5 },
+          fillcolor: domColor(k) + "22", hoverinfo: "name", showlegend: true });
+      }
+    } else if (hasX || hasY) {       // 1-axis band across the other axis
+      const i = d.axes.indexOf(hasX ? nx : ny);
+      const vals = domVertices(d).map(v => v[i]);
+      const lo = Math.min(...vals), hi = Math.max(...vals);
+      shapes.push({ type: "rect", layer: "below",
+        [hasX ? "x0" : "y0"]: lo, [hasX ? "x1" : "y1"]: hi,
+        [hasX ? "y0" : "x0"]: 0, [hasX ? "y1" : "x1"]: 1,
+        [hasX ? "yref" : "xref"]: "paper",
+        fillcolor: domColor(k) + "18", line: { width: 0 } });
+    }
+  });
+  const okS = [], viS = [];
+  for (const s of allSamples) (s.violations.length ? viS : okS).push(s);
+  okMap = okS.map(s => s._i);
+  violMap = viS.map(s => s._i);
+  const tail = geoSampleTraces(false, traces.length);
+  const line = tail[0], ok = tail[1], vi = tail[2], cur = tail[3], sel = tail[4];
+  line.x = allSamples.map(s => s.values[nx]);
+  line.y = allSamples.map(s => s.values[ny]);
+  line.showlegend = true;
+  ok.x = okS.map(s => s.values[nx]); ok.y = okS.map(s => s.values[ny]);
+  vi.x = viS.map(s => s.values[nx]); vi.y = viS.map(s => s.values[ny]);
+  const last = allSamples[allSamples.length - 1];
+  if (last) { cur.x = [last.values[nx]]; cur.y = [last.values[ny]]; }
+  const selS = selectedIdx !== null ? allSamples[selectedIdx] : null;
+  if (selS) { sel.x = [selS.values[nx]]; sel.y = [selS.values[ny]]; }
+  traces.push(...tail);
+  Plotly.react("geo", traces, plotLayout({
+    height: geoHeight, showlegend: true, shapes,
+    xaxis: { title: { text: nx }, gridcolor: css("--border"), zerolinecolor: css("--border") },
+    yaxis: { title: { text: ny }, gridcolor: css("--border"), zerolinecolor: css("--border") },
+  }), PLOT_CFG);
+}
+
+function bindClick(id, handler) {
+  const gd = document.getElementById(id);
+  if (gd.removeAllListeners) gd.removeAllListeners("plotly_click");
+  gd.on("plotly_click", ev => {
+    const p = ev.points && ev.points[0];
+    if (!p) return;
+    const info = { curveNumber: p.curveNumber, pointNumber: p.pointNumber };
+    // Defer: mutating a WebGL plot from inside its own click dispatch
+    // re-enters the gl3d picking machinery and freezes the tab. Run the
+    // selection on a fresh tick with a snapshot of the click info.
+    setTimeout(() => {
+      try { handler(info); } catch (e) { console.error("omuq webui:", e); }
+    }, 0);
+  });
+}
+
+/* ---------- geometry toolbar: zoom + fullscreen ---------- */
+function dataBounds() {  // per-axis [lo, hi] over samples + domain vertices
+  const lo = INIT.names.map(() => Infinity), hi = INIT.names.map(() => -Infinity);
+  const eat = arr => arr.forEach((v, i) => {
+    if (v === null || !isFinite(v)) return;
+    if (v < lo[i]) lo[i] = v;
+    if (v > hi[i]) hi[i] = v;
+  });
+  for (const s of allSamples) eat(INIT.names.map(n => s.values[n]));
+  for (const d of monitoredGeo())
+    for (const v of domVertices(d)) eat(mapVertex(d, v, INIT.names));
+  return INIT.names.map((_, i) => isFinite(lo[i]) ? [lo[i], hi[i]] : [0, 1]);
+}
+function padRange(lo, hi, pad) {
+  const d = (hi - lo) || 1;
+  return [lo - d * pad, hi + d * pad];
+}
+function zoomFactor(f) {
+  const gd = document.getElementById("geo");
+  if (geoMode === "3d") {
+    const cam = (gd.layout.scene && gd.layout.scene.camera) || {};
+    const eye = cam.eye || { x: 1.25, y: 1.25, z: 1.25 };
+    Plotly.relayout(gd, {
+      "scene.camera.eye": { x: eye.x * f, y: eye.y * f, z: eye.z * f },
+    });
+  } else {
+    const xr = gd._fullLayout.xaxis.range, yr = gd._fullLayout.yaxis.range;
+    const sh = r => { const c = (r[0] + r[1]) / 2, h = (r[1] - r[0]) / 2 * f; return [c - h, c + h]; };
+    Plotly.relayout(gd, { "xaxis.range": sh(xr), "yaxis.range": sh(yr) });
+  }
+}
+function zoomResetView() {
+  const gd = document.getElementById("geo");
+  if (geoMode === "3d") {
+    Plotly.relayout(gd, {
+      "scene.xaxis.autorange": true, "scene.yaxis.autorange": true,
+      "scene.zaxis.autorange": true,
+      "scene.camera.eye": { x: 1.25, y: 1.25, z: 1.25 },
+    });
+  } else {
+    Plotly.relayout(gd, { "xaxis.autorange": true, "yaxis.autorange": true });
+  }
+}
+function zoomToBox(boxByName, pad) {  // {axisName: [lo, hi]} -> axis ranges
+  const gd = document.getElementById("geo");
+  const upd = {};
+  if (geoMode === "3d") {
+    upd["scene.camera.eye"] = { x: 1.25, y: 1.25, z: 1.25 };
+    ["x", "y", "z"].forEach((a, i) => {
+      const r = boxByName[INIT.names[i]];
+      if (r) {
+        upd[`scene.${a}axis.autorange`] = false;
+        upd[`scene.${a}axis.range`] = padRange(r[0], r[1], pad);
+      }
+    });
+  } else {
+    const [nx, ny] = geoAxes2d();
+    if (boxByName[nx]) {
+      upd["xaxis.autorange"] = false;
+      upd["xaxis.range"] = padRange(boxByName[nx][0], boxByName[nx][1], pad);
+    }
+    if (boxByName[ny]) {
+      upd["yaxis.autorange"] = false;
+      upd["yaxis.range"] = padRange(boxByName[ny][0], boxByName[ny][1], pad);
+    }
+  }
+  if (Object.keys(upd).length) Plotly.relayout(gd, upd);
+}
+function boxOfDomain(id) {
+  const d = monitoredGeo().find(g => g.id === id);
+  if (!d) return null;
+  const box = {};
+  d.axes.forEach((n, i) => {
+    const vals = domVertices(d).map(v => v[i]).filter(v => isFinite(v));
+    if (vals.length) box[n] = [Math.min(...vals), Math.max(...vals)];
+  });
+  return box;
+}
+function boxOfPoint(s) {
+  if (!s) return null;
+  const bounds = dataBounds(), box = {};
+  INIT.names.forEach((n, i) => {
+    const v = s.values[n];
+    if (v === null || !isFinite(v)) return;
+    const r = (bounds[i][1] - bounds[i][0]) * 0.08 || 0.5;
+    box[n] = [v - r, v + r];
+  });
+  return box;
+}
+function applyZoomTo(value) {
+  if (!value) return;
+  if (value === "all") { zoomResetView(); return; }
+  let box = null;
+  if (value.startsWith("dom:")) box = boxOfDomain(value.slice(4));
+  else if (value === "selected")
+    box = boxOfPoint(selectedIdx !== null ? allSamples[selectedIdx] : null);
+  else if (value === "current")
+    box = boxOfPoint(allSamples[allSamples.length - 1]);
+  if (box && Object.keys(box).length) zoomToBox(box, 0.15);
+}
+function toggleFullscreen() {
+  const panel = document.getElementById("geo").closest(".panel");
+  const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+  if (!fsEl) {
+    (panel.requestFullscreen || panel.webkitRequestFullscreen || (() => {})).call(panel);
+  } else {
+    (document.exitFullscreen || document.webkitExitFullscreen || (() => {})).call(document);
+  }
+}
+function initGeoTools() {
+  const sel = document.getElementById("zoomTo");
+  sel.innerHTML =
+    '<option value="">zoom to&hellip;</option>' +
+    '<option value="all">everything</option>' +
+    monitoredGeo().map(d => `<option value="dom:${d.id}">${d.name || d.id}</option>`).join("") +
+    '<option value="selected">selected point</option>' +
+    '<option value="current">current point</option>';
+  sel.addEventListener("change", () => { applyZoomTo(sel.value); sel.value = ""; });
+  document.getElementById("zoomIn").addEventListener("click", () => zoomFactor(0.75));
+  document.getElementById("zoomOut").addEventListener("click", () => zoomFactor(1.33));
+  document.getElementById("zoomReset").addEventListener("click", zoomResetView);
+  document.getElementById("fsBtn").addEventListener("click", toggleFullscreen);
+  const onFsChange = () => {
+    const fs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    geoHeight = fs ? Math.max(window.innerHeight - 110, 300) : 440;
+    Plotly.relayout("geo", { height: geoHeight });
+  };
+  document.addEventListener("fullscreenchange", onFsChange);
+  document.addEventListener("webkitfullscreenchange", onFsChange);
+}
+
+/* ---------- selection ---------- */
+function selectSample(idx) {
+  if (idx === null || idx === undefined || !allSamples[idx]) return;
+  selectedIdx = idx;
+  const s = allSamples[idx];
+  if (geoMode === "3d") {
+    const [nx, ny, nz] = INIT.names;
+    Plotly.restyle("geo",
+      { x: [[s.values[nx]]], y: [[s.values[ny]]], z: [[s.values[nz]]] },
+      [geoIdx.sel]);
+  } else {
+    const [nx, ny] = geoAxes2d();
+    Plotly.restyle("geo", { x: [[s.values[nx]]], y: [[s.values[ny]]] }, [geoIdx.sel]);
+  }
+  Plotly.relayout("ts", { shapes: [{
+    type: "line", x0: s.t, x1: s.t, y0: 0, y1: 1, yref: "paper",
+    line: { color: css("--accent"), width: 1, dash: "dash" },
+  }] });
+  renderDetail(s);
+  document.querySelectorAll("#log div.sel").forEach(n => n.classList.remove("sel"));
+  document.querySelectorAll(`#log div[data-idx="${idx}"]`)
+    .forEach(n => n.classList.add("sel"));
+}
+
+function renderDetail(s) {
+  const outside = new Set(s.violations.map(v => v.id));
+  const rows = [["t", fmtG(s.t)], ...INIT.names.map(n => [n, fmtG(s.values[n])])];
+  const chips = INIT.domains.filter(d => d.monitored).map(d => {
+    const out = outside.has(d.id);
+    return `<span class="pill ${out ? "outside" : "inside"}">` +
+           `${d.name || d.id}: ${out ? "outside" : "inside"}</span>`;
+  }).join("");
+  const vios = s.violations.map(v => {
+    const dom = INIT.domains.find(d => d.id === v.id);
+    const point = dom && dom.axes.length
+      ? "(" + dom.axes.map(a => fmtG(s.values[a])).join(", ") + ")" : "";
+    return `<div class="vio">point ${point} outside ${v.kind} domain '${v.id}'</div>`;
+  }).join("") || '<div class="empty">no violations at this sample</div>';
+  document.getElementById("detail").innerHTML =
+    "<table>" + rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("") +
+    "</table>" + `<div class="chips">${chips}</div>` + vios;
+  document.getElementById("detailPanel").hidden = false;
+}
+
+function clearSelection() {
+  selectedIdx = null;
+  document.getElementById("detailPanel").hidden = true;
+  document.querySelectorAll("#log div.sel").forEach(n => n.classList.remove("sel"));
+  try {
+    const empty = geoMode === "3d" ? { x: [[]], y: [[]], z: [[]] } : { x: [[]], y: [[]] };
+    Plotly.restyle("geo", empty, [geoIdx.sel]);
+    Plotly.relayout("ts", { shapes: [] });
+  } catch (e) { /* plots may not exist yet */ }
+}
+
+/* ---------- sidebar, log, header ---------- */
+function buildSidebar() {
+  const holder = document.getElementById("domains");
+  holder.innerHTML = "";
+  if (!INIT.domains.length) {
+    holder.innerHTML = '<div class="empty">no domains in the study</div>';
+    return;
+  }
+  const geoList = monitoredGeo();
+  const ordered = INIT.domains.slice().sort((a, b) => Number(b.monitored) - Number(a.monitored));
+  for (const d of ordered) {
+    const card = document.createElement("div");
+    card.className = "dom" + (d.monitored ? "" : " unmonitored");
+    const k = geoList.findIndex(g => g.id === d.id);
+    const swatch = d.monitored && k >= 0
+      ? `<span class="swatch" style="background:${domColor(k)}"></span>` : "";
+    const kind = `<span class="kind">${d.kind}</span>`;
+    let meta;
+    if (d.monitored) {
+      meta = `<div class="meta"><span class="pill inside" id="pill-${d.id}">-</span>
+              <span class="count"><span id="count-${d.id}">0</span> violations</span></div>`;
+    } else {
+      meta = `<div class="reason">not monitored${d.reason ? ": " + d.reason : ""}</div>`;
+    }
+    card.innerHTML = `<div class="row">${swatch}<span class="name">${d.name || d.id}</span>${kind}</div>${meta}`;
+    holder.appendChild(card);
+  }
+}
+function updateCards(sample) {
+  const outside = new Set(sample.violations.map(v => v.id));
+  for (const d of INIT.domains) {
+    if (!d.monitored) continue;
+    const pill = document.getElementById("pill-" + d.id);
+    const count = document.getElementById("count-" + d.id);
+    if (count) count.textContent = counts[d.id] || 0;
+    if (pill) {
+      const out = outside.has(d.id);
+      pill.className = "pill " + (out ? "outside" : "inside");
+      pill.textContent = out ? "outside" : "inside";
+    }
+  }
+}
+function buildLogFilter() {
+  const sel = document.getElementById("logfilter");
+  const keys = new Set();
+  INIT.domains.filter(d => d.monitored).forEach(d => { keys.add(d.id); keys.add(d.kind); });
+  sel.innerHTML = '<option value="">all</option>' +
+    [...keys].map(k => `<option value="${k}">${k}</option>`).join("");
+  sel.addEventListener("change", () => {
+    logFilter = sel.value;
+    document.querySelectorAll("#log div[data-keys]").forEach(n => {
+      n.style.display = !logFilter || n.dataset.keys.split("|").includes(logFilter) ? "" : "none";
+    });
+  });
+}
+function addLog(sample, idx) {
+  if (!sample.violations.length) return;
+  const log = document.getElementById("log");
+  const empty = document.getElementById("logempty");
+  if (empty) empty.remove();
+  for (const v of sample.violations) {
+    const dom = INIT.domains.find(d => d.id === v.id);
+    const point = dom && dom.axes.length
+      ? "(" + dom.axes.map(a => fmtG(sample.values[a])).join(", ") + ")" : "";
+    const div = document.createElement("div");
+    div.dataset.keys = v.id + "|" + v.kind;
+    div.dataset.idx = idx;
+    div.title = "click to show this point in the plots";
+    div.textContent = `t=${fmtG(sample.t)}: point ${point} outside ${v.kind} domain '${v.id}'`;
+    div.addEventListener("click", () => selectSample(idx));
+    if (logFilter && !div.dataset.keys.split("|").includes(logFilter)) div.style.display = "none";
+    log.prepend(div);
+  }
+  while (log.children.length > 200) log.lastChild.remove();
+}
+function updateHeader() {
+  const last = allSamples[allSamples.length - 1];
+  const t = last ? last.t : INIT.start;
+  document.getElementById("tick").textContent =
+    `t = ${fmtG(t)} / ${fmtG(INIT.stop)} · ${allSamples.length} samples · ${totalViol} violations`;
+  const frac = Math.max(0, Math.min(1, (t - INIT.start) / (INIT.stop - INIT.start || 1)));
+  document.getElementById("bar").style.width = (frac * 100) + "%";
+}
+function setState(state) {
+  const badge = document.getElementById("state");
+  badge.textContent = state;
+  badge.className = "badge " + state;
+}
+function showSummary(s) {
+  const rows = [
+    ["steps", s.steps], ["samples", s.samples], ["end time", fmtG(s.end_time)],
+    ...Object.entries(s.counts).map(([id, n]) => [`violations · ${id}`, n]),
+  ];
+  document.getElementById("summary").innerHTML =
+    "<table>" + rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("") + "</table>";
+  document.getElementById("summaryPanel").hidden = false;
+}
+
+/* ---------- streaming ---------- */
+function scheduleFlush() {
+  if (flushScheduled) return;
+  flushScheduled = true;
+  requestAnimationFrame(flush);
+}
+function flush() {
+  flushScheduled = false;
+  const batch = pending;
+  pending = [];
+  if (!batch.length) return;
+  Plotly.extendTraces("ts",
+    { x: INIT.names.map(() => batch.map(s => s.t)),
+      y: INIT.names.map(n => batch.map(s => s.values[n])) },
+    INIT.names.map((_, i) => i));
+  if (geoMode === "3d") {
+    const [nx, ny, nz] = INIT.names;
+    const coords = list => ({
+      x: [list.map(s => s.values[nx])],
+      y: [list.map(s => s.values[ny])],
+      z: [list.map(s => s.values[nz])],
+    });
+    Plotly.extendTraces("geo", coords(batch), [geoIdx.line]);
+    const okS = batch.filter(s => !s.violations.length);
+    const viS = batch.filter(s => s.violations.length);
+    if (okS.length) {
+      Plotly.extendTraces("geo", coords(okS), [geoIdx.ok]);
+      okMap.push(...okS.map(s => s._i));
+    }
+    if (viS.length) {
+      Plotly.extendTraces("geo", coords(viS), [geoIdx.viol]);
+      violMap.push(...viS.map(s => s._i));
+    }
+    const last = batch[batch.length - 1];
+    Plotly.restyle("geo",
+      { x: [[last.values[nx]]], y: [[last.values[ny]]], z: [[last.values[nz]]] },
+      [geoIdx.cur]);
+  } else {
+    rebuildGeo2d();
+  }
+  updateHeader();
+}
+
+function resetState() {
+  allSamples = []; counts = {}; totalViol = 0; pending = []; flushScheduled = false;
+  okMap = []; violMap = []; selectedIdx = null;
+  document.getElementById("detailPanel").hidden = true;
+  document.getElementById("log").innerHTML =
+    '<div class="empty" id="logempty" style="border:none">none yet</div>';
+  document.getElementById("summaryPanel").hidden = true;
+  buildSidebar(); initTs(); initGeo(); updateHeader();
+}
+
+function openStream() {
+  es = new EventSource("/api/events");
+  es.addEventListener("open", resetState);   // replay is total: rebuild from scratch
+  es.addEventListener("status", e => setState(JSON.parse(e.data).state));
+  es.addEventListener("sample", e => {
+    const s = JSON.parse(e.data);
+    s._i = allSamples.length;
+    allSamples.push(s);
+    totalViol += s.violations.length;
+    for (const v of s.violations) counts[v.id] = (counts[v.id] || 0) + 1;
+    updateCards(s); addLog(s, s._i);
+    pending.push(s); scheduleFlush();
+  });
+  es.addEventListener("summary", e => showSummary(JSON.parse(e.data)));
+}
+
+async function boot() {
+  INIT = await (await fetch("/api/init")).json();
+  document.getElementById("title").textContent = INIT.title;
+  document.title = INIT.title;
+  document.getElementById("study").textContent = INIT.study ? "study: " + INIT.study : "";
+  document.getElementById("detailClose").addEventListener("click", clearSelection);
+  buildSidebar(); buildLogFilter(); initTs(); initGeo(); initGeoTools();
+  updateHeader();
+  openStream();
+}
+boot();
+</script>
+</body>
+</html>

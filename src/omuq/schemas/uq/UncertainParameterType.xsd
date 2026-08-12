@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<xs:schema
+    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    xmlns:ssc="http://ssp-standard.org/SSP1/SystemStructureCommon"
+    xmlns:uq="http://openscaling.org/UQ1/UncertaintyQuantification"
+    targetNamespace="http://openscaling.org/UQ1/UncertaintyQuantification"
+    elementFormDefault="qualified"
+    attributeFormDefault="unqualified">
+
+  <xs:import namespace="http://ssp-standard.org/SSP1/SystemStructureCommon"
+             schemaLocation="SystemStructureCommon.xsd"/>
+
+  <!-- tag::GDistribution[] -->
+  <xs:group name="GDistribution">
+    <xs:choice>
+      <xs:element name="Normal"> <!-- https://en.wikipedia.org/wiki/Normal_distribution -->
+        <xs:complexType>
+          <xs:attribute name="mu" type="xs:double" use="required"/>
+          <xs:attribute name="sigma" type="xs:double" use="required"/>
+          <xs:attribute name="minimum" type="xs:double" use="optional"/>
+          <xs:attribute name="maximum" type="xs:double" use="optional"/>
+          <xs:attribute name="unit" type="xs:string" use="optional"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="NormalTolerance"> <!-- tolerance form of Normal; see mapping below -->
+        <xs:complexType>
+          <xs:attribute name="nominal" type="xs:double" use="required"/>
+          <xs:attribute name="relTol" type="xs:double" default="0.0"/>
+          <xs:attribute name="absTol" type="xs:double" default="0.0"/>
+          <xs:attribute name="sigmaFactor" type="xs:double" default="3"/>
+          <xs:attribute name="unit" type="xs:string" use="optional"/>
+          <!-- Mapping to <Normal>:
+            tol    = max(absTol, relTol*|nominal|)
+            mu     = nominal
+            sigma  = tol/sigmaFactor   // sigmaFactor = 3 -> 99.7 % of the values of the
+                                       // original distribution are within [minimum,maximum]
+            minimum = nominal - tol
+            maximum = nominal + tol
+          -->
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="Uniform"> <!-- https://en.wikipedia.org/wiki/Continuous_uniform_distribution -->
+        <xs:complexType>
+          <xs:attribute name="minimum" type="xs:double" use="required"/>
+          <xs:attribute name="maximum" type="xs:double" use="required"/>
+          <xs:attribute name="unit" type="xs:string" use="optional"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="UniformTolerance">
+        <xs:complexType>
+          <xs:attribute name="nominal" type="xs:double" use="required"/>
+          <xs:attribute name="relTol" type="xs:double" default="0.0"/>
+          <xs:attribute name="absTol" type="xs:double" default="0.0"/>
+          <xs:attribute name="unit" type="xs:string" use="optional"/>
+          <!-- Mapping to <Uniform>:
+            tol     = max(absTol, relTol*|nominal|)
+            minimum = nominal - tol
+            maximum = nominal + tol
+          -->
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="Weibull"> <!-- https://en.wikipedia.org/wiki/Weibull_distribution -->
+        <xs:complexType>
+          <xs:attribute name="shape" type="xs:double" use="required"/>
+          <xs:attribute name="scale" type="xs:double" use="required"/>
+          <xs:attribute name="maximum" type="xs:double" use="optional"/>
+          <xs:attribute name="unit" type="xs:string" use="optional"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="Cauchy">  <!-- https://en.wikipedia.org/wiki/Cauchy_distribution -->
+        <xs:complexType>
+          <xs:attribute name="x0" type="xs:double" use="required"/>
+          <xs:attribute name="gamma" type="xs:double" use="required"/>
+          <xs:attribute name="minimum" type="xs:double" use="optional"/>
+          <xs:attribute name="maximum" type="xs:double" use="optional"/>
+          <xs:attribute name="unit" type="xs:string" use="optional"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="CauchyTolerance">
+        <xs:complexType>
+          <xs:attribute name="nominal" type="xs:double" use="required"/>
+          <xs:attribute name="relTol" type="xs:double" default="0.0"/>
+          <xs:attribute name="absTol" type="xs:double" default="0.0"/>
+          <xs:attribute name="boundaryProbability" type="xs:double" default="0.997"/>
+              <!-- corresponds to 3σ of Normal distribution -->
+          <xs:attribute name="unit" type="xs:string" use="optional"/>
+          <!-- Mapping to <Cauchy>:
+            boundaryProbability: Probability that value of non-truncated distribution
+                                 will be within nominal ± tol
+            tol   = max(absTol, relTol*|nominal|)
+            x0    = nominal
+            gamma = tol/tan(boundaryProbability*pi/2)
+            minimum = nominal - tol
+            maximum = nominal + tol
+          -->
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="MonotoneSplineCDF">
+        <xs:complexType>
+          <xs:attribute name="x" type="uq:FloatList" use="required"/>
+          <xs:attribute name="y" type="uq:FloatList" use="required"/>
+          <xs:attribute name="degree" type="xs:int" default="3"/>
+          <xs:attribute name="unit" type="xs:string" use="optional"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="VendorSpecificDistribution" type="uq:VendorSpecificType"/>
+    </xs:choice>
+  </xs:group>
+  <!-- end::GDistribution[] -->
+
+  <xs:complexType name="UncertainParameterType">
+    <xs:group ref="uq:GDistribution"/>
+    <xs:attribute name="name" type="xs:string" use="required"/>
+    <xs:attribute name="id" type="xs:ID" use="optional"/>
+    <xs:attribute name="description" type="xs:string" use="optional"/>
+    <xs:attribute name="source" type="uq:SourceType"/>
+    <xs:attribute name="sourceInfo" type="xs:string"/>
+  </xs:complexType>
+
+	<xs:simpleType name="FloatList">
+		<xs:list itemType="xs:float"/>
+	</xs:simpleType>
+
+  <xs:simpleType name="SourceType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Unknown" />
+      <xs:enumeration value="Estimated" />
+      <xs:enumeration value="Provided" />
+      <xs:enumeration value="Computed" />
+      <xs:enumeration value="Measured" />
+      <xs:enumeration value="Calibrated" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="VendorSpecificType">
+    <xs:sequence>
+      <xs:element name="KeyValues" minOccurs="0" type="uq:KeyValuesType"/>
+      <xs:element name="Annotations" minOccurs="0" type="ssc:TAnnotations"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="KeyValuesType">
+    <xs:sequence>
+      <xs:element name="KeyValue" type="uq:KeyValueType" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="type" type="xs:string" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">
+          The unique name of the type in reverse domain name notation.
+        </xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="KeyValueType" >
+    <xs:attribute name="key" type="xs:string" use="required"/>
+    <xs:attribute name="value" type="xs:string" use="required"/>
+  </xs:complexType>
+</xs:schema>

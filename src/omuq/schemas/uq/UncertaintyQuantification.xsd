@@ -1,0 +1,531 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<xs:schema
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:uq="http://openscaling.org/UQ1/UncertaintyQuantification"
+  xmlns:ssv="http://ssp-standard.org/SSP1/SystemStructureParameterValues"
+  xmlns:ssc="http://ssp-standard.org/SSP1/SystemStructureCommon"
+  xmlns:stc="http://ssp-standard.org/SSPTraceability1/SSPTraceabilityCommon"
+  targetNamespace="http://openscaling.org/UQ1/UncertaintyQuantification"
+  elementFormDefault="qualified"
+  attributeFormDefault="unqualified">
+
+  <xs:import namespace="http://ssp-standard.org/SSP1/SystemStructureCommon"
+    schemaLocation="SystemStructureCommon.xsd" />
+  <xs:import namespace="http://ssp-standard.org/SSP1/SystemStructureParameterValues"
+    schemaLocation="SystemStructureParameterValues.xsd" />
+  <xs:import namespace="http://ssp-standard.org/SSPTraceability1/SSPTraceabilityCommon"
+    schemaLocation="STC.xsd" />
+  <!-- tag::includes[] -->
+  <xs:include schemaLocation="UncertainParameterType.xsd" />
+  <xs:include schemaLocation="Assumptions.xsd" />
+  <xs:include schemaLocation="DomainHierarchy.xsd" />
+  <!-- end::includes[] -->
+
+
+  <!-- ================================================================== -->
+  <!-- REUSABLE ATTRIBUTE GROUP: AExternalSource                          -->
+  <!-- ================================================================== -->
+  <!-- Allows large data (experiment points, parameter sets) to be
+       stored in external files (CSV, XML, etc.) following SSP/FMI
+       conventions. When 'source' is present, inline children may be
+       omitted. -->
+  <!-- tag::AExternalSource[] -->
+  <xs:attributeGroup name="AExternalSource">
+    <xs:attribute name="source" type="xs:anyURI" use="optional" />
+    <xs:attribute name="type" type="xs:normalizedString" use="optional" />
+    <xs:attribute name="sourceBase" type="xs:string" use="optional" default="file" />
+    <xs:attribute name="checksum" type="xs:string" use="optional" />
+    <xs:attribute name="checksumType" type="xs:string" use="optional" />
+  </xs:attributeGroup>
+  <!-- end::AExternalSource[] -->
+
+
+  <!-- ================================================================== -->
+  <!-- ROOT ELEMENT: UncertaintyQuantification                            -->
+  <!-- ================================================================== -->
+  <!-- Root element. Children: RequiredAssumptions (before Model), Domains
+       container, Model, Activities; plus the requiredAssumptionsRefs attribute.
+  -->
+  <xs:element name="UncertaintyQuantification">
+    <xs:complexType>
+      <xs:sequence>
+        <!-- Pre-experiment required assumptions -->
+        <xs:element name="RequiredAssumptions" type="uq:RequiredAssumptionsType"
+          minOccurs="0" maxOccurs="unbounded" />
+        <!-- Domain hierarchy definitions -->
+        <xs:element name="Domains" type="uq:DomainsType" minOccurs="0" />
+        <!-- Model: optional, with optional ModelingAssumptions inside -->
+        <xs:element name="Model" type="uq:ModelType" minOccurs="0" />
+        <!-- Activities: optional, supports multiple activity types.
+             Omitted in documents that only convey assumptions or domains. -->
+        <xs:element name="Activities" type="uq:ActivitiesType" minOccurs="0" />
+        <!-- STC common elements: Classification (0..*) + Annotations (0..1) -->
+        <xs:group ref="stc:GElementCommon" />
+      </xs:sequence>
+      <xs:attribute name="name" type="xs:string" use="required" />
+      <xs:attributeGroup ref="ssc:ATopLevelMetaData" />
+      <xs:attribute name="info" type="xs:string" />
+      <!-- References to required assumptions by ID -->
+      <xs:attribute name="requiredAssumptionsRefs" type="xs:string" use="optional" />
+      <!-- URI references to SSP Traceability files -->
+      <xs:attribute name="stmdRef" type="xs:anyURI" use="optional" />
+      <xs:attribute name="srmdRef" type="xs:anyURI" use="optional" />
+    </xs:complexType>
+  </xs:element>
+
+
+  <!-- ================================================================== -->
+  <!-- ModelType                                                          -->
+  <!-- ================================================================== -->
+  <!-- ModelType: carries an optional ModelingAssumptions child element. -->
+  <xs:complexType name="ModelType">
+    <xs:sequence>
+      <!-- Actual assumptions of the built model -->
+      <xs:element name="ModelingAssumptions" type="uq:ModelingAssumptionsType"
+        minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+    <xs:attribute name="name" type="xs:string" />
+    <xs:attribute name="file" type="xs:string" />
+    <xs:attribute name="model" type="xs:string" />
+    <xs:attribute name="modelResourceMetaData" type="xs:string" />
+  </xs:complexType>
+
+
+  <!-- ================================================================== -->
+  <!-- ActivitiesType                                                  -->
+  <!-- ================================================================== -->
+  <!-- Allows multiple activity types. ForwardUQ is optional and repeatable.
+       Peer activities: Verification, Calibration, Validation, SA.
+  -->
+  <!-- tag::ActivitiesType[] -->
+  <xs:complexType name="ActivitiesType">
+    <!-- Activities may appear in any document order and are repeatable.
+         The recommended logical order is:
+         Verification → Calibration → Validation → SA → Forward UQ.
+         This is a modeling convention only; the schema constrains neither
+         document order nor execution order. -->
+    <xs:sequence>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element name="Verification" type="uq:VerificationType" />
+        <xs:element name="Calibration" type="uq:CalibrationType" />
+        <xs:element name="Validation" type="uq:ValidationType" />
+        <xs:element name="SensitivityAnalysis" type="uq:SensitivityAnalysisType" />
+        <xs:element name="ForwardUncertaintyQuantification"
+          type="uq:ForwardUncertaintyQuantificationType" />
+      </xs:choice>
+      <!-- STC common elements: Classification (0..*) + Annotations (0..1) -->
+      <xs:group ref="stc:GElementCommon" />
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:ID" />
+    <!-- Optional credibility level for the entire activities container -->
+    <xs:attribute name="credibilityLevel" type="xs:string" use="optional" />
+  </xs:complexType>
+  <!-- end::ActivitiesType[] -->
+
+
+  <!-- ================================================================== -->
+  <!-- ACTIVITY TYPES: in recommended logical order:                     -->
+  <!-- Verification → Calibration → Validation → SA → Forward UQ         -->
+  <!-- ================================================================== -->
+
+  <!--
+    VerificationType: code verification, solution verification.
+    "Is the model solving the equations correctly?"
+    Produces error metrics, convergence rates, order of accuracy.
+    Should logically precede Calibration.
+  -->
+  <xs:complexType name="VerificationType">
+    <xs:sequence>
+      <xs:element name="ParameterSet" type="uq:ParameterSetType" minOccurs="0" />
+      <xs:element name="ObservedVariables" type="uq:ObservedVariablesType" minOccurs="0" />
+      <xs:element name="DesiredResults" type="uq:DesiredResultsType" minOccurs="0" />
+      <xs:element name="SimulationSetting" type="uq:SimulationSettingType" minOccurs="0" />
+      <xs:element name="SamplingMethod" type="uq:SamplingMethodType" minOccurs="0" />
+      <!-- Verification-specific elements -->
+      <xs:element name="ReferenceData" type="uq:ReferenceDataType" minOccurs="0" />
+      <xs:element name="ResultSet" type="uq:ResultSetType" minOccurs="0" />
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:ID" />
+    <xs:attribute name="name" type="xs:string" use="optional" />
+    <xs:attribute name="description" type="xs:string" use="optional" />
+    <xs:attribute name="activityDomainRef" type="xs:string" use="optional" />
+  </xs:complexType>
+
+  <!--
+    CalibrationType: parameter calibration / inverse problem.
+    Fits model parameters to match observed data.
+    Must run after Verification and before Validation.
+  -->
+  <xs:complexType name="CalibrationType">
+    <xs:sequence>
+      <xs:element name="ParameterSet" type="uq:ParameterSetType" minOccurs="0" />
+      <xs:element name="ObservedVariables" type="uq:ObservedVariablesType" minOccurs="0" />
+      <xs:element name="SimulationSetting" type="uq:SimulationSettingType" minOccurs="0" />
+      <!-- Calibration-specific elements -->
+      <xs:element name="ReferenceData" type="uq:ReferenceDataType" minOccurs="0" />
+      <xs:element name="CalibrationTargets" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="Target" minOccurs="1" maxOccurs="unbounded">
+              <xs:complexType>
+                <xs:attribute name="parameterName" type="xs:string" use="required" />
+                <xs:attribute name="initialValue" type="xs:double" use="optional" />
+                <xs:attribute name="lowerBound" type="xs:double" use="optional" />
+                <xs:attribute name="upperBound" type="xs:double" use="optional" />
+                <xs:attribute name="unit" type="xs:string" use="optional" />
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="ResultSet" type="uq:ResultSetType" minOccurs="0" />
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:ID" />
+    <xs:attribute name="name" type="xs:string" use="optional" />
+    <xs:attribute name="description" type="xs:string" use="optional" />
+    <xs:attribute name="activityDomainRef" type="xs:string" use="optional" />
+  </xs:complexType>
+
+  <!--
+    ValidationType: comparison with experimental/physical test data.
+    "Is the model representing reality correctly?"
+    Produces validation metrics, comparison plots, confidence intervals.
+    Should use calibrated parameters.
+  -->
+  <xs:complexType name="ValidationType">
+    <xs:sequence>
+      <xs:element name="ParameterSet" type="uq:ParameterSetType" minOccurs="0" />
+      <xs:element name="ObservedVariables" type="uq:ObservedVariablesType" minOccurs="0" />
+      <xs:element name="DesiredResults" type="uq:DesiredResultsType" minOccurs="0" />
+      <xs:element name="SimulationSetting" type="uq:SimulationSettingType" minOccurs="0" />
+      <xs:element name="SamplingMethod" type="uq:SamplingMethodType" minOccurs="0" />
+      <!-- Validation-specific elements -->
+      <xs:element name="ReferenceData" type="uq:ReferenceDataType" minOccurs="0" />
+      <xs:element name="ResultSet" type="uq:ResultSetType" minOccurs="0" />
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:ID" />
+    <xs:attribute name="name" type="xs:string" use="optional" />
+    <xs:attribute name="description" type="xs:string" use="optional" />
+    <xs:attribute name="activityDomainRef" type="xs:string" use="optional" />
+  </xs:complexType>
+
+  <!--
+    SensitivityAnalysisType: which inputs most influence outputs.
+    Produces Sobol indices, Morris screening, tornado plots.
+    SA can also be used internally within other activities;
+    this type represents the standalone global SA as a top-level activity.
+  -->
+  <xs:complexType name="SensitivityAnalysisType">
+    <xs:sequence>
+      <xs:element name="ParameterSet" type="uq:ParameterSetType" minOccurs="0" />
+      <xs:element name="ObservedVariables" type="uq:ObservedVariablesType" minOccurs="0" />
+      <xs:element name="DesiredResults" type="uq:DesiredResultsType" minOccurs="0" />
+      <xs:element name="SimulationSetting" type="uq:SimulationSettingType" minOccurs="0" />
+      <xs:element name="SamplingMethod" type="uq:SamplingMethodType" minOccurs="0" />
+      <xs:element name="ResultSet" type="uq:ResultSetType" minOccurs="0" />
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:ID" />
+    <xs:attribute name="name" type="xs:string" use="optional" />
+    <xs:attribute name="description" type="xs:string" use="optional" />
+    <xs:attribute name="activityDomainRef" type="xs:string" use="optional" />
+  </xs:complexType>
+
+  <!-- ================================================================== -->
+  <!-- ForwardUncertaintyQuantificationType                                -->
+  <!-- ================================================================== -->
+  <!-- All children minOccurs="0", consistent with other activity types -->
+  <xs:complexType name="ForwardUncertaintyQuantificationType">
+    <xs:sequence>
+      <xs:element name="ParameterSet" type="uq:ParameterSetType" minOccurs="0" />
+      <xs:element name="ObservedVariables" type="uq:ObservedVariablesType" minOccurs="0" />
+      <xs:element name="DesiredResults" type="uq:DesiredResultsType" minOccurs="0" />
+      <xs:element name="SimulationSetting" type="uq:SimulationSettingType" minOccurs="0" />
+      <xs:element name="SamplingMethod" type="uq:SamplingMethodType" minOccurs="0" />
+      <xs:element name="ResultSet" type="uq:ResultSetType" minOccurs="0" />
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:ID" />
+    <!-- Optional reference to an activity domain -->
+    <xs:attribute name="activityDomainRef" type="xs:string" use="optional" />
+  </xs:complexType>
+
+
+  <!-- ================================================================== -->
+  <!-- SUPPORTING TYPES for Verification/Validation                       -->
+  <!-- ================================================================== -->
+
+  <!-- tag::ReferenceDataType[] -->
+  <xs:complexType name="ReferenceDataType">
+    <xs:sequence>
+      <xs:element name="DataSource" minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:attribute name="name" type="xs:string" use="required" />
+          <xs:attribute name="file" type="xs:string" use="optional" />
+          <xs:attribute name="type" type="xs:string" use="optional" />
+          <xs:attribute name="description" type="xs:string" use="optional" />
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+    <xs:attribute name="description" type="xs:string" use="optional" />
+  </xs:complexType>
+  <!-- end::ReferenceDataType[] -->
+
+  <!-- tag::ResultSetType[] -->
+  <xs:complexType name="ResultsType">
+    <xs:choice minOccurs="0" maxOccurs="unbounded">
+      <xs:group ref="uq:GDistribution" />
+      <xs:element name="ErrorMetric">
+        <xs:complexType>
+          <xs:attribute name="name" type="xs:string" use="optional" />
+          <xs:attribute name="type" type="xs:string" use="required" />
+          <xs:attribute name="value" type="xs:double" use="required" />
+          <xs:attribute name="threshold" type="xs:double" use="optional" />
+          <xs:attribute name="pass" type="xs:boolean" use="optional" />
+          <!-- Optional explicit link to the ObservedVariable this metric
+               refers to (matches ObservedVariable/@name). When absent,
+               the i-th metric corresponds to the i-th ObservedVariable
+               in document order. -->
+          <xs:attribute name="observedVariable" type="xs:string" use="optional" />
+        </xs:complexType>
+      </xs:element>
+    </xs:choice>
+    <xs:attribute name="point" type="xs:string" use="optional" />
+    <xs:attributeGroup ref="uq:AExternalSource" />
+  </xs:complexType>
+
+  <xs:complexType name="ResultSetType">
+    <xs:sequence>
+      <xs:element name="Results" type="uq:ResultsType"
+        minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <!-- end::ResultSetType[] -->
+
+
+  <!-- ================================================================== -->
+  <!-- GEOMETRY, PARAMETER, AND SETTING TYPES                             -->
+  <!-- ================================================================== -->
+
+  <xs:complexType name="UnitsType">
+    <xs:sequence>
+      <xs:element name="Unit" type="ssc:TUnit" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+    <xs:attributeGroup ref="uq:AExternalSource" />
+  </xs:complexType>
+
+  <xs:complexType name="ParameterSetType">
+    <xs:sequence>
+      <xs:element name="Parameters" type="uq:ParametersType" minOccurs="0" />
+      <xs:element name="OperationalDomain" type="uq:OperationalDomainType" minOccurs="0" />
+      <xs:element name="Enumerations" minOccurs="0" type="ssc:TEnumerations" />
+      <xs:element name="Units" type="uq:UnitsType" minOccurs="0" />
+      <xs:group ref="ssc:GMetaData" />
+      <xs:group ref="ssc:GSignature" />
+      <xs:element name="Annotations" minOccurs="0" type="ssc:TAnnotations" />
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:ID" use="optional" />
+    <xs:attribute name="description" type="xs:string" use="optional" />
+  </xs:complexType>
+
+  <xs:complexType name="ParametersType">
+    <xs:sequence>
+      <xs:element name="Parameter" minOccurs="0" maxOccurs="unbounded" type="ssv:TParameter" />
+      <xs:element name="UncertainParameter" minOccurs="0" maxOccurs="unbounded"
+        type="uq:UncertainParameterType" />
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:ID" />
+    <xs:attributeGroup ref="uq:AExternalSource" />
+  </xs:complexType>
+
+  <!-- OperationalDomainType: carries optional id, name, purpose attributes.
+       ExperimentPoints is optional; a domain may declare only its axes and
+       boundary (consistent with TypedOperationalDomainType / ActivityDomainType). -->
+  <xs:complexType name="OperationalDomainType">
+    <xs:sequence>
+      <xs:element name="Axes" type="uq:AxesType" />
+      <xs:element name="Boundary" type="uq:BoundaryType" />
+      <xs:element name="ExperimentPoints" type="uq:ExperimentPointsType" minOccurs="0" />
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:ID" use="optional" />
+    <xs:attribute name="name" type="xs:string" use="optional" />
+    <xs:attribute name="purpose" type="xs:string"
+      use="optional" />
+  </xs:complexType>
+
+  <xs:complexType name="AxesType">
+    <xs:sequence>
+      <xs:element name="Axis" minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:attribute name="name" type="xs:string" use="required" />
+          <xs:attribute name="unit" type="xs:string" use="optional" />
+          <xs:attribute name="id" type="xs:ID" />
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+    <xs:attributeGroup ref="uq:AExternalSource" />
+  </xs:complexType>
+
+  <xs:complexType name="ConvexHullType">
+    <xs:sequence>
+      <xs:element name="Point" minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:attribute name="id" type="xs:ID" use="optional" />
+          <xs:attribute name="coordinates" type="xs:string" use="required" />
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+    <xs:attributeGroup ref="uq:AExternalSource" />
+  </xs:complexType>
+
+  <!-- HyperRectangle: axis-aligned bounding box defined by two corner
+       points (min-corner and max-corner). Each Point's coordinates
+       attribute lists values in axis order. -->
+  <xs:complexType name="HyperRectangleType">
+    <xs:sequence>
+      <xs:element name="Point" minOccurs="0" maxOccurs="2">
+        <xs:complexType>
+          <xs:attribute name="coordinates" type="xs:string" use="required" />
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+    <xs:attributeGroup ref="uq:AExternalSource" />
+  </xs:complexType>
+
+  <xs:complexType name="BoundaryType">
+    <xs:choice>
+      <xs:element name="ConvexHull" type="uq:ConvexHullType" />
+      <xs:element name="HyperRectangle" type="uq:HyperRectangleType" />
+    </xs:choice>
+  </xs:complexType>
+
+  <!-- Within a PointSet, Points may be externalized via the source
+       attribute (its inline Point children are optional), and Parameters
+       is optional. The PointSet id is optional and, when present, may be
+       used to reference the set from other elements. -->
+  <xs:complexType name="ExperimentPointsType">
+    <xs:sequence>
+      <xs:element name="PointSet" minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="Points" type="uq:PointsType" />
+            <xs:element name="Parameters" type="uq:ParametersType" minOccurs="0" />
+          </xs:sequence>
+          <xs:attribute name="id" type="xs:string" use="optional" />
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- Carries AExternalSource; Point is optional (minOccurs="0")
+       so source-only usage (external file) is valid. -->
+  <xs:complexType name="PointsType">
+    <xs:sequence>
+      <xs:element name="Point" minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:attribute name="id" type="xs:ID" use="optional" />
+          <xs:attribute name="coordinates" type="xs:string" use="required" />
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+    <xs:attributeGroup ref="uq:AExternalSource" />
+  </xs:complexType>
+
+  <xs:complexType name="ObservedVariablesType">
+    <xs:sequence>
+      <xs:element name="ObservedVariable" type="uq:ObservedVariableType" minOccurs="0"
+        maxOccurs="unbounded" />
+    </xs:sequence>
+    <xs:attributeGroup ref="uq:AExternalSource" />
+  </xs:complexType>
+
+  <xs:complexType name="ObservedVariableType">
+    <xs:attribute name="name" type="xs:string" use="required" />
+    <xs:attribute name="distributionApproximation" type="xs:string" />
+    <xs:attribute name="unit" type="xs:string" use="optional" />
+  </xs:complexType>
+
+  <!-- DesiredResultsType: carries description + AExternalSource attributes -->
+  <xs:complexType name="DesiredResultsType">
+    <xs:sequence>
+      <xs:element name="Percentiles" type="uq:PercentilesType" minOccurs="0" />
+      <xs:element name="SobolIndices" type="uq:SobolIndicesType" minOccurs="0" />
+    </xs:sequence>
+    <xs:attribute name="data" type="xs:string" />
+    <xs:attribute name="summary" type="xs:string" />
+    <xs:attribute name="scope" type="xs:string" />
+    <xs:attribute name="mean" type="xs:boolean" />
+    <xs:attribute name="standardDeviation" type="xs:boolean" />
+    <xs:attribute name="histogram" type="xs:boolean" />
+    <xs:attribute name="pdf" type="xs:boolean" />
+    <xs:attribute name="cdf" type="xs:boolean" />
+    <xs:attribute name="quantile" type="xs:boolean" />
+    <xs:attribute name="description" type="xs:string" use="optional" />
+    <xs:attributeGroup ref="uq:AExternalSource" />
+  </xs:complexType>
+
+  <xs:complexType name="PercentilesType">
+    <xs:attribute name="level" type="uq:FloatList" use="required" />
+  </xs:complexType>
+
+  <xs:complexType name="SobolIndicesType">
+    <xs:attribute name="order" type="xs:integer" use="required" />
+    <xs:attribute name="total" type="xs:boolean" />
+  </xs:complexType>
+
+  <!-- SimulationSettingType: stopTime/interval optional; carries
+       description + AExternalSource -->
+  <xs:complexType name="SimulationSettingType">
+    <xs:sequence>
+      <xs:element name="KeyValues" minOccurs="0" type="uq:KeyValuesType" />
+      <xs:element name="Annotations" minOccurs="0" type="ssc:TAnnotations" />
+    </xs:sequence>
+    <xs:attribute name="stopTime" type="xs:double" />
+    <xs:attribute name="interval" type="xs:double" />
+    <xs:attribute name="tolerance" type="xs:double" />
+    <xs:attribute name="method" type="xs:string" />
+    <xs:attribute name="description" type="xs:string" use="optional" />
+    <xs:attributeGroup ref="uq:AExternalSource" />
+  </xs:complexType>
+
+  <!-- SamplingMethodType: sampling choice optional (wrapped in a sequence);
+       carries description + AExternalSource -->
+  <xs:complexType name="SamplingMethodType">
+    <xs:sequence>
+      <xs:choice minOccurs="0">
+        <xs:element name="PseudoRandom" type="uq:PseudoRandomType" />
+        <xs:element name="LatinHyperCube" type="uq:LatinHypercubeType" />
+        <xs:element name="VendorSpecificSampling" type="uq:VendorSpecificType" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="description" type="xs:string" use="optional" />
+    <xs:attributeGroup ref="uq:AExternalSource" />
+  </xs:complexType>
+
+  <xs:complexType name="PseudoRandomType">
+    <xs:sequence>
+      <xs:element name="KeyValues" minOccurs="0" type="uq:KeyValuesType" />
+      <xs:element name="Annotations" minOccurs="0" type="ssc:TAnnotations" />
+    </xs:sequence>
+    <xs:attribute name="numberOfSamples" type="xs:integer" use="required" />
+  </xs:complexType>
+
+  <xs:complexType name="LatinHypercubeType">
+    <xs:sequence>
+      <xs:element name="KeyValues" minOccurs="0" type="uq:KeyValuesType" />
+      <xs:element name="Annotations" minOccurs="0" type="ssc:TAnnotations" />
+    </xs:sequence>
+    <xs:attribute name="numberOfSamples" type="xs:integer" use="required" />
+  </xs:complexType>
+
+  <xs:element name="Parameters" type="uq:ParametersType" />
+  <xs:element name="Axes" type="uq:AxesType" />
+  <xs:element name="ConvexHull" type="uq:ConvexHullType" />
+  <xs:element name="HyperRectangle" type="uq:HyperRectangleType" />
+  <xs:element name="Points" type="uq:PointsType" />
+  <xs:element name="Units" type="uq:UnitsType" />
+  <xs:element name="ObservedVariables" type="uq:ObservedVariablesType" />
+  <xs:element name="DesiredResults" type="uq:DesiredResultsType" />
+  <xs:element name="SimulationSetting" type="uq:SimulationSettingType" />
+  <xs:element name="SamplingMethod" type="uq:SamplingMethodType" />
+
+</xs:schema>

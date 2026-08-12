@@ -1,0 +1,6 @@
+include LICENSE
+include docs/*.md
+include docker/*
+include examples/*.py
+include examples/ScrewTrajectory.ssp
+include tests/*.py

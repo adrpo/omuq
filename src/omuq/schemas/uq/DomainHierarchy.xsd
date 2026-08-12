@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:uq="http://openscaling.org/UQ1/UncertaintyQuantification"
+  xmlns:stc="http://ssp-standard.org/SSPTraceability1/SSPTraceabilityCommon"
+  targetNamespace="http://openscaling.org/UQ1/UncertaintyQuantification"
+  elementFormDefault="qualified"
+  attributeFormDefault="unqualified">
+
+  <xs:import namespace="http://ssp-standard.org/SSPTraceability1/SSPTraceabilityCommon"
+    schemaLocation="STC.xsd" />
+
+  <!-- ==================================================================== -->
+  <!-- TypedOperationalDomainKind: domain role in the ODD/OD/ModelOD       -->
+  <!-- hierarchy. These three kinds are defined by LS-UQ itself.            -->
+  <!-- ==================================================================== -->
+  <xs:simpleType name="TypedOperationalDomainKind">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="OperationalDesignDomain" />
+      <xs:enumeration value="RequestedOperationalDomain" />
+      <xs:enumeration value="ModeledOperationalDomain" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- ====================================================================
+       Flexible string attributes and their recommended values:
+
+       geometryKind (on TypedOperationalDomainType):
+         ConvexHull, HyperRectangle, Custom
+
+       level (on CredibilityAssessmentType):
+         CL1, CL2, CL3, CL4  (OpenSCALING default; other frameworks accepted)
+
+       purpose (on CredibilityAssessmentType):
+         TrendBehavior, QuantitativePredictions, DesignEvaluation, VirtualProductVV
+
+       process (on ProcessContextType):
+         CDP, CSP, CMP
+
+       phase (on ProcessContextType):
+         Values should match STMD.xsd/DTMD.xsd phase names from SSP Traceability
+
+       kind (on ActivityDomainType):
+         Verification, Calibration, Validation, UncertaintyQuantification, SensitivityAnalysis
+       ==================================================================== -->
+
+  <!-- ==================================================================== -->
+  <!-- CredibilityAssessmentType: links CL to purpose and requirements     -->
+  <!-- ==================================================================== -->
+  <!-- tag::CredibilityAndProcess[] -->
+  <xs:complexType name="CredibilityAssessmentType">
+    <xs:sequence>
+      <xs:element name="Description" type="xs:string" minOccurs="0" />
+      <!-- STC common elements: Classification (0..*) + Annotations (0..1) -->
+      <xs:group ref="stc:GElementCommon" />
+    </xs:sequence>
+    <xs:attribute name="level" type="xs:string" use="required" />
+    <xs:attribute name="purpose" type="xs:string" use="optional" />
+    <!-- Indicates which credibility framework is used
+         (e.g., "OpenSCALING", "ASME-VVUQ", "NASA-STD-7009") -->
+    <xs:attribute name="standard" type="xs:string" use="optional" />
+  </xs:complexType>
+
+  <!-- Process context: which process and phase an artifact belongs to -->
+  <xs:complexType name="ProcessContextType">
+    <xs:sequence>
+      <xs:element name="Description" type="xs:string" minOccurs="0" />
+      <!-- STC common elements: Classification (0..*) + Annotations (0..1) -->
+      <xs:group ref="stc:GElementCommon" />
+    </xs:sequence>
+    <!-- Simple string attributes for lightweight usage (standalone) -->
+    <xs:attribute name="process" type="xs:string" use="optional" />
+    <xs:attribute name="phase" type="xs:string" use="optional" />
+    <!-- URI reference to an STMD/DTMD GlueParticle (SSP Traceability) -->
+    <xs:attribute name="glueParticleRef" type="xs:anyURI" use="optional" />
+  </xs:complexType>
+  <!-- end::CredibilityAndProcess[] -->
+
+  <!-- ==================================================================== -->
+  <!-- TypedOperationalDomainType: wraps OperationalDomain, adds kind     -->
+  <!-- ==================================================================== -->
+  <!--
+    This wraps the existing OperationalDomainType geometry with:
+      - kind (OperationalDesignDomain / RequestedOperationalDomain / ModeledOperationalDomain)
+      - parentRef (to express domain hierarchy)
+      - credibility assessment
+      - process context
+      - description and metadata
+  -->
+  <!-- tag::TypedOperationalDomainType[] -->
+  <xs:complexType name="TypedOperationalDomainType">
+    <xs:sequence>
+      <!-- The geometric definition reuses the existing structure -->
+      <xs:element name="Axes" type="uq:AxesType" minOccurs="0" />
+      <xs:element name="Boundary" type="uq:BoundaryType" minOccurs="0" />
+      <xs:element name="ExperimentPoints" type="uq:ExperimentPointsType" minOccurs="0" />
+      <!-- Credibility assessment -->
+      <xs:element name="CredibilityAssessment" type="uq:CredibilityAssessmentType"
+        minOccurs="0" />
+      <!-- Process context -->
+      <xs:element name="ProcessContext" type="uq:ProcessContextType"
+        minOccurs="0" />
+      <!-- Free-text description -->
+      <xs:element name="Description" type="xs:string" minOccurs="0" />
+      <!-- STC common elements: Classification (0..*) + Annotations (0..1) -->
+      <xs:group ref="stc:GElementCommon" />
+    </xs:sequence>
+    <!-- Identity -->
+    <xs:attribute name="id" type="xs:ID" use="required" />
+    <xs:attribute name="name" type="xs:string" use="optional" />
+    <!-- Domain kind: ODD, Requested OD, or Modeled OD -->
+    <xs:attribute name="kind" type="uq:TypedOperationalDomainKind" use="required" />
+    <xs:attribute name="geometryKind" type="xs:string" use="optional" />
+    <!-- Hierarchy: reference to parent domain -->
+    <xs:attribute name="parentRef" type="xs:string" use="optional" />
+    <!-- URI reference to an SRMD file describing this domain -->
+    <xs:attribute name="srmdRef" type="xs:anyURI" use="optional" />
+  </xs:complexType>
+  <!-- end::TypedOperationalDomainType[] -->
+
+  <!-- ==================================================================== -->
+  <!-- tag::ActivityDomainType[] -->
+  <!-- ActivityDomainType: a domain scoped to a specific activity          -->
+  <!-- ==================================================================== -->
+  <!--
+    From the presentation: DoVerification, DoCalibration, DoV, DoSA, DoUQ
+    are each sub-regions of the ModelOD with their own boundary.
+    Each activity domain carries:
+      - Which activity it serves (kind)
+      - Its own geometric boundary (may be a subset of the parent ModelOD)
+      - Reference to the parent typed domain (typically ModelOD)
+      - Optional settings and results specific to the activity
+  -->
+  <xs:complexType name="ActivityDomainType">
+    <xs:sequence>
+      <!-- Geometric boundary of this activity domain -->
+      <xs:element name="Axes" type="uq:AxesType" minOccurs="0" />
+      <xs:element name="Boundary" type="uq:BoundaryType" minOccurs="0" />
+      <xs:element name="ExperimentPoints" type="uq:ExperimentPointsType" minOccurs="0" />
+      <!-- Activity-specific settings (forward propagation config, etc.) -->
+      <xs:element name="Settings" type="uq:ActivitySettingsType" minOccurs="0" />
+      <!-- Activity-specific results -->
+      <xs:element name="ResultSet" type="uq:ResultSetType" minOccurs="0" />
+      <!-- Free-text description -->
+      <xs:element name="Description" type="xs:string" minOccurs="0" />
+      <!-- STC common elements: Classification (0..*) + Annotations (0..1) -->
+      <xs:group ref="stc:GElementCommon" />
+    </xs:sequence>
+    <!-- Identity -->
+    <xs:attribute name="id" type="xs:ID" use="required" />
+    <xs:attribute name="name" type="xs:string" use="optional" />
+    <!-- What kind of activity -->
+    <xs:attribute name="kind" type="xs:string" use="required" />
+    <!-- Reference to parent domain (typically a TypedOperationalDomain) -->
+    <xs:attribute name="domainRef" type="xs:string" use="optional" />
+    <!-- URI reference to an SRMD file describing this domain -->
+    <xs:attribute name="srmdRef" type="xs:anyURI" use="optional" />
+  </xs:complexType>
+  <!-- end::ActivityDomainType[] -->
+
+  <!-- ==================================================================== -->
+  <!-- ActivitySettingsType: settings for an activity (forward prop, etc.) -->
+  <!-- ==================================================================== -->
+  <!--
+    Settings for an activity: key-values and free text, extensible via KeyValues.
+  -->
+  <xs:complexType name="ActivitySettingsType">
+    <xs:sequence>
+      <xs:element name="KeyValues" minOccurs="0" type="uq:KeyValuesType" />
+      <xs:element name="Description" type="xs:string" minOccurs="0" />
+    </xs:sequence>
+    <xs:attribute name="method" type="xs:string" use="optional" />
+  </xs:complexType>
+
+  <!-- ==================================================================== -->
+  <!-- DomainCoverageType: gap/risk between requested OD and ModelOD       -->
+  <!-- ==================================================================== -->
+  <!--
+    From the presentation (slide 7): comparison between OD (blue) and
+    ModelOD (green) yields risk zones:
+      - Covered    = green (model capable)
+      - HighRisk   = red (critical gap, model may execute but should not)
+      - AcceptableRisk = orange (potentially acceptable gap)
+      - NotNeeded  = regions outside OD (no model required)
+  -->
+  <xs:simpleType name="CoverageClassificationType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Covered" />
+      <xs:enumeration value="HighRisk" />
+      <xs:enumeration value="AcceptableRisk" />
+      <xs:enumeration value="NotNeeded" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- tag::DomainCoverageType[] -->
+  <xs:complexType name="DomainCoverageType">
+    <xs:sequence>
+      <xs:element name="Region" minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="Boundary" type="uq:BoundaryType" minOccurs="0" />
+            <xs:element name="Description" type="xs:string" minOccurs="0" />
+          </xs:sequence>
+          <xs:attribute name="classification" type="uq:CoverageClassificationType"
+            use="required" />
+          <xs:attribute name="id" type="xs:ID" use="optional" />
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="Description" type="xs:string" minOccurs="0" />
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:ID" use="optional" />
+    <!-- The two domains being compared -->
+    <xs:attribute name="requestedDomainRef" type="xs:string" use="required" />
+    <xs:attribute name="realizedDomainRef" type="xs:string" use="required" />
+  </xs:complexType>
+  <!-- end::DomainCoverageType[] -->
+
+  <!-- ==================================================================== -->
+  <!-- tag::DomainsType[] -->
+  <!-- DomainsType: top-level container for all domain definitions         -->
+  <!-- ==================================================================== -->
+  <xs:complexType name="DomainsType">
+    <xs:sequence>
+      <xs:element name="TypedOperationalDomain" type="uq:TypedOperationalDomainType"
+        minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="ActivityDomain" type="uq:ActivityDomainType"
+        minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="DomainCoverage" type="uq:DomainCoverageType"
+        minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <!-- end::DomainsType[] -->
+
+</xs:schema>
