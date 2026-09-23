@@ -22,6 +22,7 @@ import platform as platform_module
 import queue
 import shutil
 import subprocess
+import sys
 import threading
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
@@ -453,8 +454,10 @@ def _local_driver(
         from OMSimulator import SSP
     except ImportError:
         failures.append(
-            "OMSimulator is not importable in this interpreter "
-            "(fix: pip install OMSimulator)"
+            f"OMSimulator is not importable in this interpreter ({sys.executable}) "
+            "(fix: with uv, add the sim extra: uv run --extra sim ... or "
+            "uv sync --extra sim; otherwise pip install OMSimulator into "
+            "this same interpreter)"
         )
         return None
     log.info("driver: in-process OMSimulator on %s (system %r)", path, system)

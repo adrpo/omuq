@@ -147,6 +147,7 @@ def test_auto_driver_without_any_backend_raises(no_omsimulator, no_docker, tmp_p
     with pytest.raises(DriverNotFoundError) as err:
         auto_driver(tmp_path / "model.ssp")
     message = str(err.value)
+    assert "--extra sim" in message
     assert "pip install OMSimulator" in message
     assert "docker/" in message
 
