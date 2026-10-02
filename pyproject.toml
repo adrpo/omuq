@@ -22,6 +22,8 @@ dependencies = [
     "xsdata>=24.0",
 ]
 
+[project.scripts]
+omuq = "omuq.cli:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=7", "xsdata[cli]>=24.0", "ruff"]
