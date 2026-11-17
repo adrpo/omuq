@@ -367,6 +367,27 @@ domain boundaries (rectangles and hulls). A tab opened late or refreshed
 replays the run from the start. The server uses only the standard library
 and binds to `127.0.0.1` by default.
 
+## Command line
+
+The package installs an `omuq` command (also `python -m omuq`):
+
+```bash
+omuq list model.uq.ssp                 # studies, activities, domains
+omuq validate model.uq.ssp             # validation report (exit status 2 on errors)
+omuq run model.uq.ssp --study 0 --activity 0 \
+    --csv run.csv --output model.uq.results.ssp
+```
+
+`run` simulates one activity, monitors the study's domains, writes the
+samples to `--csv` and records the run into the package saved as
+`--output`. `--ui` serves the live web UI and keeps serving after the run.
+
+With `--json`, `list` and `validate` print one JSON document and `run`
+prints JSON lines (`start`, `sample`, `exit`, `summary`, `artifacts`, or
+`error`), so other tools such as OMEdit can drive omuq; anything the
+simulator prints goes to standard error. See `src/omuq/cli.py` for the
+event fields.
+
 ## Docker driver
 
 OMSimulator has no macOS build; `DockerOMSimulatorDriver` runs it inside a
