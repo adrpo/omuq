@@ -388,6 +388,77 @@ prints JSON lines (`start`, `sample`, `exit`, `summary`, `artifacts`, or
 simulator prints goes to standard error. See `src/omuq/cli.py` for the
 event fields.
 
+## Using omuq from OMEdit
+
+OMEdit (OpenModelica) runs the UQ activities of an SSP model through omuq.
+It calls `python -m omuq list|run <model.ssp> --json`, so all it needs is a
+Python that has omuq and OMSimulator installed. The **UQ Activities...**
+action is in the OpenModelica nightly builds from 2026-11-04 on
+(OpenModelica/OpenModelica#17075).
+
+### 1. Install omuq
+
+Create a virtual environment and install omuq with the `sim` (OMSimulator)
+and `geometry` (scipy, convex-hull domains) extras:
+
+```bash
+git clone https://github.com/adrpo/omuq
+cd omuq
+python3 -m venv .venv
+.venv/bin/pip install -e ".[sim,geometry]"       # Windows: .venv\Scripts\pip
+```
+
+With uv: `uv venv && uv pip install -e ".[sim,geometry]"`.
+
+If the install fails with `Failed to download ... OMSimulator-...tar.gz`,
+the newest OMSimulator on PyPI cannot fetch its binaries; install an older
+one first and repeat the command above:
+
+```bash
+.venv/bin/pip install "OMSimulator==3.0.0.post116"
+```
+
+Create the example package and check the command line interface:
+
+```bash
+.venv/bin/python examples/03_author_domains.py
+.venv/bin/python -m omuq list examples/out/ScrewTrajectory.uq.ssp
+```
+
+The second command prints the study, its activity and its two domains.
+
+### 2. Point OMEdit to that Python
+
+**Tools > Options > OMSimulator/SSP > Uncertainty Quantification (omuq) >
+Python**: browse to the Python of the virtual environment,
+`<omuq>/.venv/bin/python` on Linux or `<omuq>\.venv\Scripts\python.exe`
+on Windows. The default is `python3` (`python` on Windows) from the
+`PATH`, which only works when omuq is installed there.
+
+### 3. Run an activity
+
+1. Open an SSP that has an omuq study attached, e.g.
+   `examples/out/ScrewTrajectory.uq.ssp`.
+2. Right-click the model in the Libraries Browser > **UQ Activities...**
+3. Pick the study and the activity, optionally change the stop time and
+   the step size, choose the live view (Off / In OMEdit / In the web
+   browser) and press Run.
+
+The run gets its own tab in the Messages Browser (progress, domain exits,
+summary) and the samples show up in the Variables Browser. With recording
+on, the run is stored in `<model>.uq.results.ssp`.
+
+### Notes
+
+* The FMUs in the example SSP are built for 64-bit Linux. On Windows they
+  have to be recompiled from their sources for win64 first.
+* "omuq is not installed for ..." in OMEdit: the Python set in step 2 has
+  no omuq.
+* "No omuq study is attached to ...": the SSP carries no study;
+  `examples/03_author_domains.py` shows how to attach one.
+* Without a local OMSimulator, omuq can run the simulation in Docker
+  (Simulator: Docker in the dialog), see the next section.
+
 ## Docker driver
 
 OMSimulator has no macOS build; `DockerOMSimulatorDriver` runs it inside a
