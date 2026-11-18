@@ -8,7 +8,9 @@ implementation guideline (see docs/IMPLEMENTATION_GUIDELINE.md):
 * omuq instance documents are stored as separate files under
   ``resources/uq/`` inside the SSP package;
 * the primary MIME type is ``application/x-omuq``; the longer
-  ``application/x-openscaling-uq`` is accepted as a read-side alias.
+  ``application/x-openscaling-uq`` and ``application/x-uncertainty-quantification``
+  (the type in the examples of the UQ layered standard) are accepted as
+  read-side aliases.
 """
 
 from __future__ import annotations
@@ -30,7 +32,13 @@ NSMAP = {"uq": NS_UQ, "ssc": NS_SSC, "ssv": NS_SSV, "stc": NS_STC}
 MIME_OMUQ = "application/x-omuq"
 
 #: All MIME types recognized as omuq content when reading.
-MIME_ALIASES = frozenset({MIME_OMUQ, "application/x-openscaling-uq"})
+MIME_ALIASES = frozenset(
+    {
+        MIME_OMUQ,
+        "application/x-openscaling-uq",
+        "application/x-uncertainty-quantification",
+    }
+)
 
 # --- SSP MetaData conventions --------------------------------------------
 

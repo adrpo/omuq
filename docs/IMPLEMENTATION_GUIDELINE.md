@@ -19,7 +19,8 @@ elements (SSP 2.0, section 4.5.4.1).
 
 1. The MetaData element MUST carry `type` (the MIME type) set to
    `application/x-omuq`. Readers SHOULD also accept
-   `application/x-openscaling-uq` as an alias.
+   `application/x-openscaling-uq` and
+   `application/x-uncertainty-quantification` as aliases.
 2. The MetaData element SHOULD carry `kind="quality"`. Uncertainty and
    credibility information is quality-related metadata in the sense of the
    SSP specification.
