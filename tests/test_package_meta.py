@@ -17,7 +17,7 @@ from omuq import (
     SspPackage,
     model,
 )
-from omuq.constants import MIME_OMUQ
+from omuq.constants import MIME_ALIASES, MIME_OMUQ
 from omuq.xmlhost import DefaultExperiment, SsdDocument
 
 NO_DEFAULT_EXPERIMENT = """<?xml version="1.0" encoding="UTF-8"?>
@@ -144,6 +144,22 @@ def test_study_index_out_of_range_raises(pkg):
 def test_study_on_empty_package_raises(pkg):
     with pytest.raises(PackageError):
         pkg.uq.study()
+
+
+@pytest.mark.parametrize("mime", sorted(MIME_ALIASES))
+def test_studies_reads_links_of_every_accepted_mime_type(pkg, mime):
+    pkg.uq.attach(make_study("A"), SsdRootAnchor(), mime=mime)
+    attached = reopen(pkg)[0].uq.study("A")
+    assert attached.mime == mime
+
+
+def test_the_layered_standard_mime_type_is_accepted():
+    assert "application/x-uncertainty-quantification" in MIME_ALIASES
+
+
+def test_studies_ignores_links_of_another_mime_type(pkg):
+    pkg.uq.attach(make_study("A"), SsdRootAnchor(), mime="application/x-other")
+    assert reopen(pkg)[0].uq.studies() == []
 
 
 # -- attach() robustness against a pre-existing broken link ------------------
