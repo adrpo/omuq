@@ -760,6 +760,15 @@ def test_omsim_unknown_element_raises_simulation_error():
         d.read(["nope.gain.y"])
 
 
+@pytest.mark.parametrize("name", ["comp.nope", "comp.gain.nope"])
+def test_omsim_unknown_variable_raises_simulation_error(name):
+    pytest.importorskip("OMSimulator")
+    d = OMSimulatorDriver(_ComponentModel(), system="sys")
+    d.initialize(0.0, 1.0, 0.5, [name])
+    with pytest.raises(SimulationError, match=f"cannot read '{name}'"):
+        d.read([name])
+
+
 def test_omsim_missing_package_raises_helpful():
     try:
         import OMSimulator  # noqa: F401

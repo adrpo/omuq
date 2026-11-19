@@ -123,6 +123,8 @@ class OMSimulatorDriver:
         except KeyError:
             if self._cref_factory is not None or name in self._resolved:
                 raise
+        except RuntimeError as exc:
+            raise SimulationError(f"OMSimulator cannot read {name!r}: {exc}") from exc
         # The fully split reference names an element the model does not have:
         # the variable name itself contains dots (a variable inside an FMU).
         from OMSimulator import CRef
@@ -134,6 +136,10 @@ class OMSimulatorDriver:
                 value = self._model.getValue(ref)
             except KeyError:
                 continue
+            except RuntimeError as exc:
+                raise SimulationError(
+                    f"OMSimulator cannot read {name!r}: {exc}"
+                ) from exc
             self._crefs[name] = ref
             self._resolved.add(name)
             return value
