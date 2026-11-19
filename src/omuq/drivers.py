@@ -49,10 +49,13 @@ class OMSimulatorDriver:
         inst = SSP("model.ssp").instantiate()
         driver = OMSimulatorDriver(inst, system="default")
 
-    Variables are addressed as ``CRef(system, *name.split("."))``. SSP allows
-    literal dots inside element names; for such models pass ``cref_factory``,
-    a callable mapping an observed-variable name to whatever the model's
-    ``getValue`` accepts.
+    Variables are addressed as ``CRef(system, *name.split("."))``. A variable
+    inside an FMU keeps its dots in the last part of the reference
+    (``comp.gain.y`` is the variable ``gain.y`` of ``comp``); when the model
+    does not know the fully split reference, the driver looks for the split
+    between element and variable name. SSP allows literal dots inside element
+    names; for such models pass ``cref_factory``, a callable mapping an
+    observed-variable name to whatever the model's ``getValue`` accepts.
     """
 
     def __init__(
@@ -66,6 +69,7 @@ class OMSimulatorDriver:
         self._system = system
         self._cref_factory = cref_factory
         self._crefs: dict[str, object] = {}
+        self._resolved: set[str] = set()
         self._mode: str | None = None
 
     def initialize(
@@ -111,7 +115,31 @@ class OMSimulatorDriver:
             self._model.doStep()
 
     def read(self, names: Sequence[str]) -> list[float]:
-        return [float(self._model.getValue(self._cref(n))) for n in names]
+        return [float(self._get(n)) for n in names]
+
+    def _get(self, name: str):
+        try:
+            return self._model.getValue(self._cref(name))
+        except KeyError:
+            if self._cref_factory is not None or name in self._resolved:
+                raise
+        # The fully split reference names an element the model does not have:
+        # the variable name itself contains dots (a variable inside an FMU).
+        from OMSimulator import CRef
+
+        parts = name.split(".")
+        for k in range(len(parts) - 2, 0, -1):
+            ref = CRef(self._system, *parts[:k], ".".join(parts[k:]))
+            try:
+                value = self._model.getValue(ref)
+            except KeyError:
+                continue
+            self._crefs[name] = ref
+            self._resolved.add(name)
+            return value
+        raise SimulationError(
+            f"the OMSimulator model has no variable {name!r} in system {self._system!r}"
+        )
 
     def terminate(self) -> None:
         # Never delete(): the user instantiated the model and keeps ownership.

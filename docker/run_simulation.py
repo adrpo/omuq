@@ -70,6 +70,7 @@ class V3Backend:
             CRef = None
         self._CRef = CRef
         self._system = system
+        self._refs = {}
         self._inst = SSP(ssp_path).instantiate()
 
     def setup(self, start, stop, step):
@@ -94,16 +95,33 @@ class V3Backend:
         m.initialize()
 
     def cref(self, name):
+        return name
+
+    def _candidates(self, name):
+        # A variable inside an FMU keeps its dots in the last part of the
+        # reference: try the fully split name first, then fewer splits.
         parts = name.split(".")
-        if self._CRef is not None:
-            return self._CRef(self._system, *parts)
-        return ".".join([self._system, *parts])
+        if self._CRef is None:
+            yield ".".join([self._system, *parts])
+            return
+        yield self._CRef(self._system, *parts)
+        for k in range(len(parts) - 2, 0, -1):
+            yield self._CRef(self._system, *parts[:k], ".".join(parts[k:]))
 
     def advance(self, t):
         self._advance(t)
 
-    def get(self, ref):
-        return float(self._inst.getValue(ref))
+    def get(self, name):
+        if name in self._refs:
+            return float(self._inst.getValue(self._refs[name]))
+        for ref in self._candidates(name):
+            try:
+                value = float(self._inst.getValue(ref))
+            except KeyError:
+                continue
+            self._refs[name] = ref
+            return value
+        raise RuntimeError(f"no variable {name!r} in system {self._system!r}")
 
     def close(self):
         for call in ("terminate", "delete"):

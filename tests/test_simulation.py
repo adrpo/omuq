@@ -719,6 +719,47 @@ def test_omsim_cref_mapping_and_caching():
     assert ref == ("sys", "comp", "v")
 
 
+class _ComponentModel(StepUntilModel):
+    """getValue like OMSimulator: all but the last name must be an element."""
+
+    components = {"sys.comp", "sys.sub.inner"}
+    variables = {"sys.comp.v", "sys.comp.gain.y", "sys.sub.inner.a.b.c"}
+
+    def getValue(self, ref):
+        self.calls.append(("getValue", list(ref.names)))
+        element = ".".join(ref.names[:-1])
+        if element not in self.components:
+            raise KeyError(f"Missing required key: '{element}'")
+        if ".".join(ref.names) not in self.variables:
+            raise RuntimeError(f"Failed to get variable type for {ref}")
+        return 1.0
+
+
+def test_omsim_reads_variables_inside_an_fmu():
+    pytest.importorskip("OMSimulator")
+    m = _ComponentModel()
+    d = OMSimulatorDriver(m, system="sys")
+    names = ["comp.v", "comp.gain.y", "sub.inner.a.b.c"]
+    d.initialize(0.0, 1.0, 0.5, names)
+    assert d.read(names) == [1.0, 1.0, 1.0]
+    m.calls.clear()
+    d.read(names)
+    # the element/variable split is found once, then reused
+    assert [c[1] for c in m.calls] == [
+        ["sys", "comp", "v"],
+        ["sys", "comp", "gain.y"],
+        ["sys", "sub", "inner", "a.b.c"],
+    ]
+
+
+def test_omsim_unknown_element_raises_simulation_error():
+    pytest.importorskip("OMSimulator")
+    d = OMSimulatorDriver(_ComponentModel(), system="sys")
+    d.initialize(0.0, 1.0, 0.5, ["nope.gain.y"])
+    with pytest.raises(SimulationError, match="no variable 'nope.gain.y'"):
+        d.read(["nope.gain.y"])
+
+
 def test_omsim_missing_package_raises_helpful():
     try:
         import OMSimulator  # noqa: F401
